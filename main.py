@@ -25,6 +25,24 @@ python main.py
 
 import pandas as pd
 import numpy as np
+import matplotlib.path as _mpath
+
+# Fix: matplotlib Path.__deepcopy__ calls copy.deepcopy(super(), memo) which
+# causes infinite recursion under Python 3.14. Patch it to copy arrays directly.
+def _fixed_path_deepcopy(self, memo=None):
+    p = _mpath.Path(
+        vertices=np.array(self._vertices),
+        codes=np.array(self._codes) if self._codes is not None else None,
+        _interpolation_steps=self._interpolation_steps,
+        readonly=False,
+    )
+    if memo is not None:
+        memo[id(self)] = p
+    return p
+
+_mpath.Path.__deepcopy__ = _fixed_path_deepcopy
+_mpath.Path.deepcopy = _fixed_path_deepcopy
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.ensemble import RandomForestClassifier
@@ -56,7 +74,7 @@ class SailingWindPredictor:
                 level0, level1 = col
                 if pd.isna(level0) or 'Unnamed' in str(level0) or level0 == '':
                     new_columns.append(level1)
-                elif pd.isna(level1) or level1 == '':
+                elif pd.isna(level1) or level1 == '' or 'Unnamed' in str(level1):
                     new_columns.append(level0)
                 else:
                     new_columns.append(f"{level0}_{level1}")
