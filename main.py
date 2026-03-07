@@ -494,7 +494,9 @@ class SailingWindPredictor:
         plt.xticks(rotation=45)
 
         plt.tight_layout()
-        plt.show()
+        plt.savefig('sailing_analysis.png', dpi=150, bbox_inches='tight')
+        plt.close()
+        print("Plot saved to sailing_analysis.png")
 
         # Print statistics
         print(f"Overall good sailing conditions: {df['good_sailing'].mean():.3f}")
@@ -509,39 +511,50 @@ def main():
     print("Sailing Wind Prediction System")
     print("=" * 40)
 
-    # Load data (replace with your actual file path)
-    file_path = "input/Wetterstation July 16 2025.xlsx"  # Update this path to your Excel file
+    # Load all available xlsx files
+    import glob as _glob
+    xlsx_files = (
+        _glob.glob("input/*.xlsx") +
+        _glob.glob("input/downloaded_files/*.xlsx")
+    )
+    if not xlsx_files:
+        xlsx_files = ["input/Wetterstation July 16 2025.xlsx"]
 
     try:
-        # Load and process data
-        df = predictor.load_excel_data(file_path)
-        if df is not None:
-            df = predictor.create_wind_consistency_features(df)
-            df = predictor.create_sailing_target(df)
-            df = predictor.create_features(df)
+        # Load and combine all data files
+        frames = []
+        for file_path in xlsx_files:
+            df_part = predictor.load_excel_data(file_path)
+            if df_part is not None:
+                frames.append(df_part)
 
-            # Analyze patterns
-            predictor.analyze_sailing_patterns(df)
+        if not frames:
+            raise FileNotFoundError("No valid xlsx files found")
 
-            # Prepare training data
-            X, y, df_clean = predictor.prepare_training_data(df)
+        df = pd.concat(frames).sort_index()
+        df = df[~df.index.duplicated(keep='first')]
+        print(f"\nCombined {len(frames)} file(s), {len(df)} total records")
 
-            # Train model
-            X_train, X_test, y_train, y_test = predictor.train_model(X, y)
+        df = predictor.create_wind_consistency_features(df)
+        df = predictor.create_sailing_target(df)
+        df = predictor.create_features(df)
 
-            # Save processed data
-            df_clean.to_csv('processed_weather_data.csv')
-            print("\nProcessed data saved to 'processed_weather_data.csv'")
+        # Analyze patterns
+        predictor.analyze_sailing_patterns(df)
 
-    except FileNotFoundError:
-        print(f"File {file_path} not found. Please update the file path.")
-        print("\nTo use this system:")
-        print("1. Create virtual environment: python3 -m venv sailing_env")
-        print("2. Activate environment: source sailing_env/bin/activate")
-        print("3. Install packages: pip install pandas numpy matplotlib seaborn scikit-learn openpyxl")
-        print("4. Update the file_path variable with your Excel file path")
-        print("5. Run the script to process your data and train the model")
-        print("6. Use the trained model to predict sailing conditions")
+        # Prepare training data
+        X, y, df_clean = predictor.prepare_training_data(df)
+
+        # Train model
+        X_train, X_test, y_train, y_test = predictor.train_model(X, y)
+
+        # Save processed data
+        df_clean.to_csv('processed_weather_data.csv')
+        print("\nProcessed data saved to 'processed_weather_data.csv'")
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        print("\nPlace xlsx files in input/ or input/downloaded_files/ and re-run.")
 
 if __name__ == "__main__":
     main()
