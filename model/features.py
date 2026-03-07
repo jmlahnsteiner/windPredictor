@@ -80,7 +80,7 @@ def _is_good_instant(df: pd.DataFrame, cfg: dict) -> pd.Series:
 
     wind_dir_range = (
         df["wind_direction"]
-        .rolling(window, min_periods=1)
+        .rolling(window, min_periods=2)
         .apply(_circular_range, raw=False)
     )
 
@@ -134,9 +134,32 @@ def extract_snapshot_features(
         return None
 
     current = past.iloc[-1]
-    past_3h = past[past.index >= snap_dt - pd.Timedelta("3h")]
-    past_6h = past[past.index >= snap_dt - pd.Timedelta("6h")]
+    past_3h  = past[past.index >= snap_dt - pd.Timedelta("3h")]
+    past_6h  = past[past.index >= snap_dt - pd.Timedelta("6h")]
     past_12h = past[past.index >= snap_dt - pd.Timedelta("12h")]
+    past_24h = past[past.index >= snap_dt - pd.Timedelta("24h")]
+
+    # Point counts per window — used both to gate unreliable features and as
+    # an explicit feature so the model can learn to trust dense windows more.
+    n_3h  = past_3h["wind_direction"].notna().sum()
+    n_6h  = past_6h["wind_direction"].notna().sum()
+    n_12h = past_12h["wind_direction"].notna().sum()
+    n_24h = past_24h["wind_direction"].notna().sum()
+
+    # Minimum points needed before a rolling stat is considered reliable.
+    # Below this threshold we return NaN so the value gets median-imputed
+    # rather than polluting the model with a single-point artefact.
+    # At 5-min resolution a 3h window holds ~36 points; we require at least 3
+    # so that even hourly data passes, but a single stray reading does not.
+    MIN_3H  = 3
+    MIN_6H  = 3
+    MIN_12H = 4
+
+    def _guarded_circ_std(series: pd.Series, min_pts: int) -> float:
+        return _circular_std(series) if series.notna().sum() >= min_pts else np.nan
+
+    def _guarded_std(series: pd.Series, min_pts: int) -> float:
+        return float(series.std()) if series.notna().sum() >= min_pts else np.nan
 
     wind_dir = current.get("wind_direction", np.nan)
 
@@ -147,6 +170,10 @@ def extract_snapshot_features(
         "day_of_week":   snap_dt.dayofweek,
         "sin_doy":       np.sin(2 * np.pi * snap_dt.dayofyear / 365),
         "cos_doy":       np.cos(2 * np.pi * snap_dt.dayofyear / 365),
+        # Data density: points per hour in the last 24h, normalised so that
+        # 5-min resolution (12 pts/hr) → 1.0 and hourly → ~0.083.
+        # Lets the model discount features computed from sparse windows.
+        "data_density": n_24h / 24 / 12,
         # Anomalies: current value minus 28-day trailing mean.
         # These capture synoptic weather signals (fronts, pressure systems)
         # rather than the seasonal baseline.
@@ -158,18 +185,22 @@ def extract_snapshot_features(
         # Wind direction as unit-circle components (no seasonal baseline needed)
         "wind_dir_sin": np.sin(np.radians(wind_dir)),
         "wind_dir_cos": np.cos(np.radians(wind_dir)),
-        # Short-term trends and variability — already relative, no deseasonalising needed
-        "pressure_trend_3h":       _trend(past_3h["pressure_relative"]),
-        "temp_trend_3h":           _trend(past_3h["temperature"]),
-        "wind_speed_mean_3h":      past_3h["wind_speed"].mean(),
-        "wind_speed_std_3h":       past_3h["wind_speed"].std(),
-        "wind_speed_max_3h":       past_3h["wind_speed"].max(),
-        "wind_dir_consistency_3h": _circular_std(past_3h["wind_direction"]),
-        "pressure_trend_6h":       _trend(past_6h["pressure_relative"]),
-        "wind_speed_mean_6h":      past_6h["wind_speed"].mean(),
-        "wind_dir_consistency_6h": _circular_std(past_6h["wind_direction"]),
-        "pressure_trend_12h":      _trend(past_12h["pressure_relative"]),
-        "wind_speed_mean_12h":     past_12h["wind_speed"].mean(),
+        # Short-term trends — reliable even with 2 points
+        "pressure_trend_3h":  _trend(past_3h["pressure_relative"]),
+        "temp_trend_3h":      _trend(past_3h["temperature"]),
+        "pressure_trend_6h":  _trend(past_6h["pressure_relative"]),
+        "pressure_trend_12h": _trend(past_12h["pressure_relative"]),
+        # Rolling means — unbiased for any n≥1, so no guard needed
+        "wind_speed_mean_3h":  past_3h["wind_speed"].mean(),
+        "wind_speed_mean_6h":  past_6h["wind_speed"].mean(),
+        "wind_speed_mean_12h": past_12h["wind_speed"].mean(),
+        "wind_speed_max_3h":   past_3h["wind_speed"].max(),
+        # Variability/consistency stats — gated: a single reading gives a
+        # spuriously perfect score (std=0, circ_std=0) which would bias the model
+        "wind_speed_std_3h":       _guarded_std(past_3h["wind_speed"], MIN_3H),
+        "wind_dir_consistency_3h": _guarded_circ_std(past_3h["wind_direction"], MIN_3H),
+        "wind_dir_consistency_6h": _guarded_circ_std(past_6h["wind_direction"], MIN_6H),
+        "wind_dir_consistency_12h": _guarded_circ_std(past_12h["wind_direction"], MIN_12H),
     }
 
 
