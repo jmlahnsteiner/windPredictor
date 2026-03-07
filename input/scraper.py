@@ -1,40 +1,67 @@
 import os
-from datetime import datetime, timedelta
+import time
+from datetime import datetime
 
 import requests
+
+DEVICE_ID = "cHF5MGpPMzZFeDEvbFAvL2J6QjBWdz09"
+AUTHORIZE = "E6K45F"
+SORT_LIST = "0|1|2|49|4|5|32"
+REFERER = f"https://www.ecowitt.net/home/share?authorize={AUTHORIZE}&device_id={DEVICE_ID}&units=1,3,7,12,16,24"
 
 # Set output directory
 output_dir = "downloaded_files"
 os.makedirs(output_dir, exist_ok=True)
 
 
-def generate_file_url(date_str):
-    start_date = datetime.strptime(date_str, "%Y-%m-%d")
-    end_date = start_date + timedelta(days=1) - timedelta(minutes=1)
-    start_time = start_date.strftime("%Y%m%d%H%M%S")
-    end_time = end_date.strftime("%Y%m%d%H%M%S")
-    return f"https://www.ecowitt.net/uploads/156707/Wetterstation%28{start_time}-{end_time}%29.xlsx"
+def download_file(date_str):
+    """Download weather data xlsx for a given date (YYYY-MM-DD)."""
+    sdate = f"{date_str} 00:00"
+    edate = f"{date_str} 23:59"
+    date_compact = date_str.replace("-", "")
+    xlsx_url = f"https://www.ecowitt.net/uploads/156707/Wetterstation%28{date_compact}0000-{date_compact}2359%29.xlsx"
 
-
-def download_file(url, date_str):
     headers = {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36",
-        "Referer": "https://www.ecowitt.net/home/share?authorize=E6K45F&device_id=cHF5MGpPMzZFeDEvbFAvL2J6QjBWdz09&units=1,3,7,12,16,24",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-User": "?1",
+        "Referer": REFERER,
+        "Content-Type": "application/x-www-form-urlencoded",
     }
+
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()  # Raise error for 4xx/5xx
-        # Validate xlsx content (xlsx files start with PK magic bytes)
-        if not response.content[:2] == b'PK':
-            print(f"Error: Response is not a valid xlsx file (got {len(response.content)} bytes)")
-            print(f"Content preview: {response.content[:200]}")
+        session = requests.Session()
+
+        # Step 1: POST to trigger server-side file generation
+        ts = int(time.time() * 1000)
+        resp = session.post(
+            f"https://www.ecowitt.net/index/export_excel?time={ts}",
+            data={
+                "device_id": DEVICE_ID,
+                "authorize": AUTHORIZE,
+                "mode": "0",
+                "sdate": sdate,
+                "edate": edate,
+                "sortList": SORT_LIST,
+                "hideList": "",
+            },
+            headers=headers,
+            timeout=15,
+        )
+        resp.raise_for_status()
+
+        # Step 2: GET the generated xlsx file
+        resp = session.get(xlsx_url, headers=headers, timeout=15)
+        resp.raise_for_status()
+
+        if resp.content[:2] != b'PK':
+            print(f"Error: Response is not a valid xlsx file ({len(resp.content)} bytes)")
+            print(f"Content preview: {resp.content[:200]}")
             return
+
         file_path = os.path.join(output_dir, f"Wetterstation_{date_str}.xlsx")
         with open(file_path, "wb") as f:
-            f.write(response.content)
+            f.write(resp.content)
         print(f"Saved: {file_path}")
+
     except requests.exceptions.RequestException as e:
         print("Error downloading file:", e)
     except Exception as e:
@@ -43,5 +70,4 @@ def download_file(url, date_str):
 
 # Example usage
 date = "2026-03-04"
-url = generate_file_url(date)
-download_file(url, date)
+download_file(date)
