@@ -1,0 +1,27 @@
+[sailing]
+# Sailing window (local time)
+window_start = "08:00"
+window_end   = "16:00"
+# Good-conditions thresholds
+wind_speed_min          = 2.0   # knots
+wind_speed_max          = 12.0  # knots
+wind_dir_consistency_max = 30.0  # max degrees of circular range over the consistency window
+consistency_window_hours = 2
+
+[prediction]
+# Times at which a snapshot is taken and a forecast is made.
+# Snapshots before window_start predict the same day's window.
+# Snapshots after window_start predict the next day's window.
+snapshots = ["06:00", "18:00", "00:00", "05:00"]
+# A day is "good" if at least this fraction of the sailing window has good conditions.
+min_good_fraction = 0.30
+
+[paths]
+data_parquet     = "data.parquet"
+model_file       = "model/weights.joblib"
+predictions_file = "predictions.json"
+
+[model]
+n_estimators    = 300
+max_depth       = 6
+min_samples_leaf = 2
