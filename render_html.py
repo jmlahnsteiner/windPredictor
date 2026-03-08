@@ -237,11 +237,11 @@ def _wind_svg(window_wind: dict, cfg: dict) -> str:
     means, stds = _rolling(speeds)
 
     # ── Layout ────────────────────────────────────────────────────────────────
-    VW, VH = 360, 155
-    SPLIT  = 218          # left / right panel boundary
+    VW, VH = 360, 220
+    SPLIT  = 230          # left / right panel boundary
 
     LP_L, LP_R = 28, 6
-    LP_T, LP_B = 16, 18   # LP_T: panel title; LP_B: time-axis labels
+    LP_T, LP_B = 16, 22   # LP_T: panel title; LP_B: time-axis labels
     cw = SPLIT - LP_L - LP_R
     ch = VH - LP_T - LP_B
 
@@ -273,7 +273,7 @@ def _wind_svg(window_wind: dict, cfg: dict) -> str:
     # ── SVG ───────────────────────────────────────────────────────────────────
     p = [
         f'<svg viewBox="0 0 {VW} {VH}" '
-        f'style="width:100%;height:{VH}px;display:block;margin-bottom:.75rem" '
+        f'style="width:100%;max-height:{VH}px;display:block;margin-bottom:.75rem" '
         f'class="wind-svg" aria-hidden="true">'
     ]
 
@@ -526,10 +526,26 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
     # Group by predicting_date, keep all snapshots
     by_date: dict[str, list[dict]] = defaultdict(list)
     for p in predictions:
+        if "predicting_date" not in p:
+            continue
         by_date[p["predicting_date"]].append(p)
 
-    # Sort dates ascending
-    sorted_dates = sorted(by_date.keys())
+    # Classify each date as past (sailing window closed) or active/future.
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    we_h, we_m = map(int, window_end.split(":"))
+    window_closed_today = (now.hour, now.minute) >= (we_h, we_m)
+
+    def _is_past(date_str: str) -> bool:
+        if date_str < today_str:
+            return True
+        if date_str == today_str and window_closed_today:
+            return True
+        return False
+
+    active_dates = sorted(d for d in by_date if not _is_past(d))
+    past_dates   = sorted((d for d in by_date if _is_past(d)), reverse=True)
+    sorted_dates = active_dates + past_dates   # active first, newest-past last
 
     # Build day cards HTML
     cards_html = ""
@@ -539,18 +555,26 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
         headline = snaps[-1]
         prob = headline["probability"]
         good = headline["good"]
+        is_past_day = _is_past(date_str)
 
         # Formatted date
         dt = datetime.strptime(date_str, "%Y-%m-%d")
         day_label = dt.strftime("%A, %-d %B %Y")
 
         pct = round(prob * 100)
-        status_class = "good" if good else "poor"
-        status_text  = "Good day" if good else "Poor day"
-        status_icon  = "⛵" if good else "🌧"
+        if is_past_day:
+            status_class = "past"
+            status_text  = "Past · Good" if good else "Past · Poor"
+            status_icon  = "⛵" if good else "🌧"
+        else:
+            status_class = "good" if good else "poor"
+            status_text  = "Good day" if good else "Poor day"
+            status_icon  = "⛵" if good else "🌧"
 
-        # Bar color
-        if pct >= int(threshold * 100):
+        # Bar color (muted for past days)
+        if is_past_day:
+            bar_color = "var(--c-muted)"
+        elif pct >= int(threshold * 100):
             bar_color = "var(--c-good)"
         elif pct >= int(threshold * 100 * 0.6):
             bar_color = "var(--c-warn)"
@@ -576,16 +600,7 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
               </td>
             </tr>"""
 
-        cards_html += f"""
-    <article class="day-card {status_class}">
-      <header class="card-header">
-        <div class="card-title">
-          <span class="card-icon">{status_icon}</span>
-          <h2>{day_label}</h2>
-        </div>
-        <div class="card-badge {status_class}">{status_text}</div>
-      </header>
-
+        card_body = f"""
       <div class="card-body">
         <div class="prob-section">
           <span class="prob-label">Sailing probability</span>
@@ -616,7 +631,37 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
             </tbody>
           </table>
         </details>
-      </div>
+      </div>"""
+
+        if is_past_day:
+            cards_html += f"""
+    <details class="past-card-wrap">
+      <summary class="past-card-summary">
+        <article class="day-card past" style="margin-bottom:0">
+          <header class="card-header">
+            <div class="card-title">
+              <span class="card-icon">{status_icon}</span>
+              <h2>{day_label}</h2>
+            </div>
+            <div class="card-badge past">{status_text}</div>
+          </header>
+        </article>
+      </summary>
+      <article class="day-card past past-detail">
+        {card_body}
+      </article>
+    </details>"""
+        else:
+            cards_html += f"""
+    <article class="day-card {status_class}">
+      <header class="card-header">
+        <div class="card-title">
+          <span class="card-icon">{status_icon}</span>
+          <h2>{day_label}</h2>
+        </div>
+        <div class="card-badge {status_class}">{status_text}</div>
+      </header>
+      {card_body}
     </article>"""
 
     generated = datetime.now().strftime("%-d %B %Y, %H:%M")
@@ -708,6 +753,23 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
     }}
     .day-card.good {{ border-left: 4px solid var(--c-good); }}
     .day-card.poor {{ border-left: 4px solid var(--c-poor); }}
+    .day-card.past {{ border-left: 4px solid var(--c-border); opacity: 0.72; }}
+
+    /* Past-day collapsible wrapper */
+    .past-card-wrap {{ margin-bottom: 1.25rem; }}
+    .past-card-wrap[open] .past-card-summary article {{ border-radius: var(--radius) var(--radius) 0 0; margin-bottom: 0; }}
+    .past-card-summary {{ list-style: none; cursor: pointer; }}
+    .past-card-summary::-webkit-details-marker {{ display: none; }}
+    .past-card-summary article {{ margin-bottom: 0; }}
+    .past-card-summary .card-header::after {{
+      content: "▸";
+      font-size: 0.8rem;
+      color: var(--c-muted);
+      margin-left: auto;
+      transition: transform 0.2s;
+    }}
+    .past-card-wrap[open] .past-card-summary .card-header::after {{ transform: rotate(90deg); }}
+    .past-detail {{ border-radius: 0 0 var(--radius) var(--radius); border-top: none; }}
 
     /* card header */
     .card-header {{
@@ -746,6 +808,11 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       background: var(--c-poor-bg);
       color: var(--c-poor);
       border: 1px solid var(--c-poor-bd);
+    }}
+    .card-badge.past {{
+      background: var(--c-bg);
+      color: var(--c-muted);
+      border: 1px solid var(--c-border);
     }}
 
     /* card body */
