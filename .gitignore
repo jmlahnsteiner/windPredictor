@@ -8,7 +8,5 @@ __pycache__
 *.har
 *.png
 
-*.joblib
-
 logs/
 .DS_Store
