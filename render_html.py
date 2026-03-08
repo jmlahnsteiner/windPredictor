@@ -455,7 +455,7 @@ def _history_html(db_path: str, days: int = 60) -> str:
     dots = ""
     for _, row in df.iterrows():
         pred_good = int(row["good"])
-        has_outcome = not (row["actual_good"] != row["actual_good"])  # NaN check
+        has_outcome = row["actual_good"] is not None and row["actual_good"] == row["actual_good"]
         date_label = row["predicting_date"]
         prob_pct = round(float(row["probability"]) * 100)
 
