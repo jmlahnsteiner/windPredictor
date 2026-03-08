@@ -223,6 +223,20 @@
     .snap-good .snap-bar { background: var(--c-good); opacity: 0.7; }
     .snap-poor .snap-bar { background: var(--c-poor); opacity: 0.5; }
 
+    /* ── Wind distribution charts ── */
+    .wind-svg .wv-lbl {
+      fill: var(--c-muted);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .wind-svg .wv-grid { stroke: var(--c-border); }
+
+    /* ── Forecast probability trend sparkline ── */
+    .dropout-svg .do-lbl {
+      fill: var(--c-muted);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .dropout-svg .do-track { stroke: var(--c-border); }
+
     /* ── Footer ── */
     .page-footer {
       margin-top: 2.5rem;
@@ -236,7 +250,7 @@
   <div class="page-wrap">
     <header class="page-header">
       <h1>⛵ Wind Predictor</h1>
-      <p class="subtitle">Sailing conditions forecast · Generated 8 March 2026, 15:45</p>
+      <p class="subtitle">Sailing conditions forecast · Generated 8 March 2026, 17:20</p>
     </header>
 
     
@@ -244,7 +258,7 @@
       <header class="card-header">
         <div class="card-title">
           <span class="card-icon">🌧</span>
-          <h2>Sunday, 8 March 2026</h2>
+          <h2>Tuesday, 10 March 2026</h2>
         </div>
         <div class="card-badge poor">Poor day</div>
       </header>
@@ -266,6 +280,26 @@
           <span class="meta-chip">Threshold 30%</span>
         </div>
 
+        
+
+        <svg viewBox="0 0 360 38" style="width:100%;height:38px;display:block;margin-bottom:.5rem" class="dropout-svg" aria-hidden="true">
+<text x="49" y="16.5" font-size="6.5" text-anchor="end" class="do-lbl">Forecast</text>
+<line x1="52" y1="18.0" x2="352" y2="18.0" stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>
+<polyline points="58.0,22.5 302.0,23.0 346.0,23.0" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+<circle cx="58.0" cy="22.5" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="58.0" y="18.5" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">7%</text>
+<circle cx="302.0" cy="23.0" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="302.0" y="19.0" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">5%</text>
+<circle cx="346.0" cy="23.0" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="346.0" y="19.0" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">5%</text>
+<line x1="58.0" y1="24.0" x2="58.0" y2="27.0" stroke-width="0.75" class="do-track"/>
+<text x="58.0" y="37" font-size="6" text-anchor="start" class="do-lbl">00:00</text>
+<line x1="302.0" y1="24.0" x2="302.0" y2="27.0" stroke-width="0.75" class="do-track"/>
+<text x="302.0" y="37" font-size="6" text-anchor="middle" class="do-lbl">05:00</text>
+<line x1="346.0" y1="24.0" x2="346.0" y2="27.0" stroke-width="0.75" class="do-track"/>
+<text x="346.0" y="37" font-size="6" text-anchor="end" class="do-lbl">06:00</text>
+</svg>
+
         <details class="snapshots">
           <summary>All snapshots (3)</summary>
           <table class="snap-table">
@@ -273,9 +307,9 @@
             <tr class="snap-row snap-poor">
               <td class="snap-time">Snapshot 00:00</td>
               <td class="snap-dot">○</td>
-              <td class="snap-prob">8%</td>
+              <td class="snap-prob">7%</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:8%"></div>
+                <div class="snap-bar" style="width:7%"></div>
               </td>
             </tr>
             <tr class="snap-row snap-poor">
@@ -303,7 +337,7 @@
       <header class="card-header">
         <div class="card-title">
           <span class="card-icon">🌧</span>
-          <h2>Monday, 9 March 2026</h2>
+          <h2>Wednesday, 11 March 2026</h2>
         </div>
         <div class="card-badge poor">Poor day</div>
       </header>
@@ -324,6 +358,10 @@
           <span class="meta-chip">💨 2.0–10.0 kn</span>
           <span class="meta-chip">Threshold 30%</span>
         </div>
+
+        
+
+        
 
         <details class="snapshots">
           <summary>All snapshots (1)</summary>
