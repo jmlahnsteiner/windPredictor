@@ -72,23 +72,13 @@ def _anomaly(series: pd.Series, snap_dt: pd.Timestamp) -> float:
 
 def _is_good_instant(df: pd.DataFrame, cfg: dict) -> pd.Series:
     """
-    Boolean Series: True where instantaneous conditions are within thresholds.
-    Applies the wind-direction consistency check over a rolling time window.
-    Optionally gates on a minimum air temperature (sailing season filter).
+    Per-reading boolean: True where wind speed (and optionally temperature)
+    are within thresholds.  Direction consistency is NOT checked here —
+    it is evaluated once per day in compute_daily_target so that the check
+    works regardless of data resolution (hourly, 4-hourly, or 5-minute).
     """
     sc = cfg["sailing"]
-    window = f"{sc['consistency_window_hours']}h"
-
-    wind_dir_range = (
-        df["wind_direction"]
-        .rolling(window, min_periods=2)
-        .apply(_circular_range, raw=False)
-    )
-
-    good = (
-        df["wind_speed"].between(sc["wind_speed_min"], sc["wind_speed_max"])
-        & (wind_dir_range <= sc["wind_dir_consistency_max"])
-    )
+    good = df["wind_speed"].between(sc["wind_speed_min"], sc["wind_speed_max"])
 
     min_temp = sc.get("min_temperature")
     if min_temp is not None and "temperature" in df.columns:
@@ -102,12 +92,38 @@ def compute_daily_target(df: pd.DataFrame, cfg: dict) -> pd.Series:
     For each calendar date in df, return the fraction of the sailing window
     (window_start–window_end) where conditions are good.
 
+    Speed and temperature are checked per reading.  Direction consistency is
+    checked once per day using all in-range readings within the sailing window,
+    so the check works correctly regardless of data resolution (hourly, 4 h,
+    5 min).  Days with fewer than 3 in-range direction readings are skipped.
+
     Returns a pd.Series indexed by datetime.date.
     """
     sc = cfg["sailing"]
-    good = _is_good_instant(df, cfg)
-    sailing_good = good.between_time(sc["window_start"], sc["window_end"])
-    return sailing_good.groupby(sailing_good.index.date).mean()
+
+    sailing = df.between_time(sc["window_start"], sc["window_end"])
+    speed_temp_ok = _is_good_instant(sailing, cfg)
+
+    results: dict = {}
+    for date, day_df in sailing.groupby(sailing.index.date):
+        day_ok = speed_temp_ok.reindex(day_df.index).fillna(False)
+        frac = float(day_ok.mean())
+
+        # Direction consistency: circular std over speed-qualified readings only.
+        # Using speed-qualified readings avoids calm-period noise (many stations
+        # report direction = 0° when wind is calm, which is not a real direction).
+        valid_dirs = day_df.loc[day_ok, "wind_direction"].dropna()
+        if len(valid_dirs) < 3:
+            # Not enough in-range readings to assess direction — mark as poor.
+            results[date] = 0.0
+            continue
+
+        if _circular_std(valid_dirs) > sc["wind_dir_consistency_max"]:
+            results[date] = 0.0  # direction too variable
+        else:
+            results[date] = frac
+
+    return pd.Series(results)
 
 
 def _target_date(snap_dt: pd.Timestamp, window_start: str) -> datetime.date:
