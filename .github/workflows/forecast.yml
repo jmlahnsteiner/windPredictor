@@ -6,8 +6,8 @@ on:
   # Example below assumes CET (UTC+1); shift by +1 hour for CEST (UTC+2 in summer).
   schedule:
     - cron: '0 23 * * *'  # 00:00 CET  → previous day 23:00 UTC
-    - cron: '0  4 * * *'  # 05:00 CET  → 04:00 UTC
-    - cron: '0  5 * * *'  # 06:00 CET  → 05:00 UTC
+    - cron: '0  5 * * *'  # 06:00 CET  → 54:00 UTC
+    - cron: '0 11 * * *'  # 12:00 CET  →115:00 UTC
     - cron: '0 17 * * *'  # 18:00 CET  → 17:00 UTC
 
   workflow_dispatch:        # also triggerable manually from the Actions tab
