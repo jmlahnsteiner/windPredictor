@@ -34,15 +34,20 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUTPUT_DIR = os.path.join(_HERE, "downloaded_files")
 
 
-def download_date(date_str: str, session: requests.Session, output_dir: str) -> bool:
-    """Download weather data for a single date (YYYY-MM-DD). Returns True on success."""
-    date_compact = date_str.replace("-", "")
-    xlsx_url = (
-        f"https://www.ecowitt.net/uploads/156707/"
-        f"Wetterstation%28{date_compact}0000-{date_compact}2359%29.xlsx"
-    )
+def download_date(
+    date_str: str,
+    session: requests.Session,
+    output_dir: str,
+    edate: str | None = None,
+) -> bool:
+    """
+    Download weather data for a single date (YYYY-MM-DD). Returns True on success.
+    edate: end time as "HH:MM" (default "23:59"); pass current time for today's partial data.
+    """
+    edate = edate or "23:59"
 
-    # Step 1: POST to trigger server-side file generation
+    # Step 1: POST to trigger server-side file generation.
+    # The response JSON contains the actual URL of the generated file.
     ts = int(time.time() * 1000)
     resp = session.post(
         f"https://www.ecowitt.net/index/export_excel?time={ts}",
@@ -51,7 +56,7 @@ def download_date(date_str: str, session: requests.Session, output_dir: str) -> 
             "authorize": AUTHORIZE,
             "mode": "0",
             "sdate": f"{date_str} 00:00",
-            "edate": f"{date_str} 23:59",
+            "edate": f"{date_str} {edate}",
             "sortList": SORT_LIST,
             "hideList": "",
         },
@@ -59,6 +64,19 @@ def download_date(date_str: str, session: requests.Session, output_dir: str) -> 
         timeout=15,
     )
     resp.raise_for_status()
+
+    # Parse the URL from the POST response rather than hardcoding it.
+    try:
+        data = resp.json()
+        xlsx_url = data["url"]
+    except Exception:
+        # Fallback: construct URL from date (works for fully-cached older days)
+        date_compact = date_str.replace("-", "")
+        edate_compact = edate.replace(":", "")
+        xlsx_url = (
+            f"https://www.ecowitt.net/uploads/156707/"
+            f"Wetterstation%28{date_compact}0000-{date_compact}{edate_compact}%29.xlsx"
+        )
 
     # Step 2: GET the generated xlsx
     resp = session.get(xlsx_url, headers=BASE_HEADERS, timeout=15)
@@ -107,7 +125,8 @@ def download_range(
             continue
 
         try:
-            results[date_str] = download_date(date_str, session, output_dir)
+            edate = datetime.now().strftime("%H:%M") if forced else None
+            results[date_str] = download_date(date_str, session, output_dir, edate=edate)
         except requests.exceptions.RequestException as e:
             print(f"  [!] {date_str}: {e}")
             results[date_str] = False
