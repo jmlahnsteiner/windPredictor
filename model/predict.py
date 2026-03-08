@@ -108,11 +108,48 @@ def _sailing_window_data(
     if len(needed) < 3:
         return {}
 
+    # Align gusts to the same index as speed/direction; gaps become None.
+    gusts = window["wind_gust"].reindex(needed.index) if "wind_gust" in window.columns else pd.Series(index=needed.index, dtype=float)
+
     return {
         "times":          [t.strftime("%H:%M") for t in needed.index],
         "speeds_kn":      [round(float(v), 1) for v in needed["wind_speed"]],
         "directions_deg": [round(float(v))     for v in needed["wind_direction"]],
+        "gusts_kn":       [round(float(v), 1) if pd.notna(v) else None for v in gusts],
     }
+
+
+def _enrich_with_nwp(results: list[dict], cfg: dict) -> None:
+    """
+    Fetch Open-Meteo NWP for the configured location and attach an
+    ``nwp_forecast`` dict to each result.  Mutates results in-place.
+    No-op when [location] is absent from config or the fetch fails.
+    """
+    loc = cfg.get("location", {})
+    lat = loc.get("lat")
+    lon = loc.get("lon")
+    if lat is None or lon is None:
+        return
+
+    try:
+        from input.open_meteo import fetch_forecast, sailing_window_stats
+    except ImportError:
+        print("  [!] input/open_meteo.py not found — skipping NWP enrichment")
+        return
+
+    print("Fetching NWP forecast from Open-Meteo …", flush=True)
+    nwp_df = fetch_forecast(lat, lon)
+    if nwp_df.empty:
+        return
+
+    sc = cfg["sailing"]
+    for result in results:
+        if "error" in result or "predicting_date" not in result:
+            continue
+        tgt_date = date.fromisoformat(result["predicting_date"])
+        stats = sailing_window_stats(nwp_df, tgt_date, sc["window_start"], sc["window_end"])
+        if stats:
+            result["nwp_forecast"] = stats
 
 
 def predict_all(
@@ -148,6 +185,7 @@ def predict_all(
         result = predict_snapshot(df, snap_dt, bundle, cfg)
         results.append(result)
 
+    _enrich_with_nwp(results, cfg)
     return results
 
 

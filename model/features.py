@@ -201,6 +201,39 @@ def extract_snapshot_features(
         "wind_dir_consistency_3h": _guarded_circ_std(past_3h["wind_direction"], MIN_3H),
         "wind_dir_consistency_6h": _guarded_circ_std(past_6h["wind_direction"], MIN_6H),
         "wind_dir_consistency_12h": _guarded_circ_std(past_12h["wind_direction"], MIN_12H),
+        # ── Thermal / sea-breeze features ────────────────────────────────────
+        # Thermal wind strength depends on land-sea (or land-lake) temperature
+        # contrast, which is driven by the diurnal heating cycle.
+        # These features encode the *potential* for thermally driven wind given
+        # the local overnight cooling and daytime heating state at snapshot time.
+        # NOTE: re-run model/train.py after adding these features.
+        "diurnal_temp_range_24h": (
+            float(past_24h["temperature"].max() - past_24h["temperature"].min())
+            if n_24h >= 4 else np.nan
+        ),
+        # How far into the heating cycle we are: zero in the morning, peaks
+        # in the early afternoon when thermals are strongest.
+        "temp_above_daily_min": (
+            float(current["temperature"] - past_24h["temperature"].min())
+            if n_24h >= 4 and pd.notna(current.get("temperature")) else np.nan
+        ),
+        # Direct solar radiation — heating rate signal; zero at night is valid.
+        "solar_mean_3h": (
+            float(past_3h["solar"].mean())
+            if "solar" in df.columns and n_3h >= MIN_3H else np.nan
+        ),
+        # Dew-point depression: larger = drier air = clearer sky = stronger thermals.
+        "dew_point_depression": (
+            float(current["temperature"] - current["dew_point"])
+            if "dew_point" in df.columns
+            and pd.notna(current.get("temperature"))
+            and pd.notna(current.get("dew_point"))
+            else np.nan
+        ),
+        # Low overnight humidity → clear skies → strong daytime heating.
+        "humidity_min_24h": (
+            float(past_24h["humidity"].min()) if n_24h >= 4 else np.nan
+        ),
     }
 
 

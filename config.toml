@@ -25,3 +25,10 @@ predictions_file = "predictions.json"
 n_estimators    = 300
 max_depth       = 6
 min_samples_leaf = 2
+
+# [location]
+# Coordinates for NWP forecast enrichment via Open-Meteo (no API key needed).
+# Uncomment the three lines below and fill in your location to enable.
+# name = "My Lake"
+# lat  = 47.5    # decimal degrees, positive = North
+# lon  = 9.8     # decimal degrees, positive = East

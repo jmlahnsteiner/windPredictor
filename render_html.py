@@ -16,6 +16,8 @@ import tomllib
 from collections import defaultdict
 from datetime import datetime
 
+import numpy as np
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -30,6 +32,76 @@ def load_config(path: str) -> dict:
 def dir_label(degrees: float) -> str:
     dirs = ["N","NE","E","SE","S","SW","W","NW"]
     return dirs[round(degrees / 45) % 8]
+
+
+def _window_stats(window_wind: dict, cfg: dict) -> dict:
+    """Compute observed stats from window_wind (local station data)."""
+    speeds = window_wind.get("speeds_kn", [])
+    gusts  = window_wind.get("gusts_kn", [])
+    dirs   = window_wind.get("directions_deg", [])
+    if len(speeds) < 3:
+        return {}
+
+    sc       = cfg.get("sailing", {})
+    wind_min = sc.get("wind_speed_min", 2.0)
+    wind_max = sc.get("wind_speed_max", 10.0)
+
+    pct_good = round(sum(1 for s in speeds if wind_min <= s <= wind_max) / len(speeds) * 100)
+
+    dir_std: float | None = None
+    if len(dirs) >= 3:
+        rad = np.radians(dirs)
+        R   = float(np.hypot(np.sin(rad).mean(), np.cos(rad).mean()))
+        dir_std = round(math.degrees(math.sqrt(-2 * math.log(max(R, 1e-9)))), 1)
+
+    valid_gusts = [g for g in gusts if g is not None]
+
+    return {
+        "mean_kn":     round(sum(speeds) / len(speeds), 1),
+        "max_kn":      round(max(speeds), 1),
+        "max_gust_kn": round(max(valid_gusts), 1) if valid_gusts else None,
+        "pct_good":    pct_good,
+        "dir_std_deg": dir_std,
+    }
+
+
+def _stats_html(headline: dict, cfg: dict) -> str:
+    """
+    Render compact observed + NWP stats rows for a day card.
+    Returns '' when neither data source is available.
+    """
+    rows = []
+
+    obs = _window_stats(headline.get("window_wind", {}), cfg)
+    if obs:
+        gust = f" / gust {obs['max_gust_kn']} kn" if obs["max_gust_kn"] is not None else ""
+        dir_chip = f'<span class="stats-chip">dir ±{obs["dir_std_deg"]}°</span>' if obs["dir_std_deg"] is not None else ""
+        rows.append(
+            f'<div class="stats-row stats-observed">'
+            f'<span class="stats-label">Observed</span>'
+            f'<span class="stats-chip">avg {obs["mean_kn"]} kn</span>'
+            f'<span class="stats-chip">max {obs["max_kn"]} kn{gust}</span>'
+            f'<span class="stats-chip">{obs["pct_good"]}% in range</span>'
+            f'{dir_chip}'
+            f'</div>'
+        )
+
+    nwp = headline.get("nwp_forecast", {})
+    if nwp:
+        wind_chip = f'<span class="stats-chip">avg {nwp["mean_wind_kn"]} kn</span>' if nwp.get("mean_wind_kn") is not None else ""
+        gust_chip = f'<span class="stats-chip">gust {nwp["max_gust_kn"]} kn</span>' if nwp.get("max_gust_kn") is not None else ""
+        cloud_chip = f'<span class="stats-chip">cloud {nwp["cloud_cover_pct"]}%</span>' if nwp.get("cloud_cover_pct") is not None else ""
+        blh_chip  = f'<span class="stats-chip">BLH {nwp["blh_m"]:,} m</span>' if nwp.get("blh_m") is not None else ""
+        rows.append(
+            f'<div class="stats-row stats-nwp">'
+            f'<span class="stats-label">NWP</span>'
+            f'{wind_chip}{gust_chip}{cloud_chip}{blh_chip}'
+            f'</div>'
+        )
+
+    if not rows:
+        return ""
+    return '<div class="stats-block">' + "".join(rows) + "</div>\n"
 
 
 def _prob_trend_svg(snaps: list[dict]) -> str:
@@ -439,6 +511,8 @@ def build_html(predictions: list[dict], cfg: dict) -> str:
 
         {_wind_svg(headline.get("window_wind", {}), cfg)}
 
+        {_stats_html(headline, cfg)}
+
         {_prob_trend_svg(snaps)}
 
         <details class="snapshots">
@@ -635,6 +709,38 @@ def build_html(predictions: list[dict], cfg: dict) -> str:
       border-radius: 999px;
       padding: 0.15rem 0.6rem;
     }}
+
+    /* ── Window stats ── */
+    .stats-block {{
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      margin-bottom: 0.85rem;
+    }}
+    .stats-row {{
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
+    }}
+    .stats-label {{
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      min-width: 60px;
+      color: var(--c-muted);
+    }}
+    .stats-chip {{
+      font-size: 0.72rem;
+      color: var(--c-text);
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 999px;
+      padding: 0.1rem 0.5rem;
+    }}
+    .stats-observed .stats-label {{ color: var(--c-good); }}
+    .stats-nwp      .stats-label {{ color: #7c3aed; }}
 
     /* snapshots collapsible */
     .snapshots summary {{
