@@ -5,8 +5,15 @@ window_end   = "16:00"
 # Good-conditions thresholds
 wind_speed_min          = 2.0   # knots
 wind_speed_max          = 12.0  # knots
-wind_dir_consistency_max = 90.0  # max degrees of circular range over the consistency window
+# Max circular range of wind direction over the consistency window.
+# 90° was too permissive — let December katabatic drainage winds through.
+# 45° captures real thermal wind while filtering winter drift wind.
+wind_dir_consistency_max = 45.0
 consistency_window_hours = 0.5
+# Minimum air temperature for a "good sailing" instant.
+# Excludes winter days where wind thresholds are technically met but
+# nobody is on the water. Set to null (or remove) to disable.
+min_temperature = 12.0          # °C
 
 [prediction]
 # Times at which a snapshot is taken and a forecast is made.

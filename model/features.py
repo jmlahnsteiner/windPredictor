@@ -74,6 +74,7 @@ def _is_good_instant(df: pd.DataFrame, cfg: dict) -> pd.Series:
     """
     Boolean Series: True where instantaneous conditions are within thresholds.
     Applies the wind-direction consistency check over a rolling time window.
+    Optionally gates on a minimum air temperature (sailing season filter).
     """
     sc = cfg["sailing"]
     window = f"{sc['consistency_window_hours']}h"
@@ -84,10 +85,16 @@ def _is_good_instant(df: pd.DataFrame, cfg: dict) -> pd.Series:
         .apply(_circular_range, raw=False)
     )
 
-    return (
+    good = (
         df["wind_speed"].between(sc["wind_speed_min"], sc["wind_speed_max"])
         & (wind_dir_range <= sc["wind_dir_consistency_max"])
     )
+
+    min_temp = sc.get("min_temperature")
+    if min_temp is not None and "temperature" in df.columns:
+        good = good & (df["temperature"] >= min_temp)
+
+    return good
 
 
 def compute_daily_target(df: pd.DataFrame, cfg: dict) -> pd.Series:
