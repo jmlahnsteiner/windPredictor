@@ -62,7 +62,12 @@ def predict_snapshot(
         if X[col].isna().any():
             X[col] = X[col].fillna(feature_medians.get(col, 0.0))
 
-    prob = float(clf.predict_proba(X)[0][1])
+    proba = clf.predict_proba(X)[0]
+    if len(proba) == 1:
+        # Model was trained with only one class present in the data.
+        prob = float(proba[0]) if int(clf.classes_[0]) == 1 else 0.0
+    else:
+        prob = float(proba[1])
     tgt = _target_date(snap_dt, cfg["sailing"]["window_start"])
 
     result = {

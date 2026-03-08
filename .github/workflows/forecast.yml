@@ -47,7 +47,16 @@ jobs:
           restore-keys: wind-data-
 
       - name: Download weather data
-        run: python input/scraper.py   # fetches last 7 days, skips existing files
+        # On first run (no cache) pull 90 days so training has enough history
+        # for both classes; on subsequent runs only the last 7 days are needed.
+        run: |
+          if [ -f model/weights.joblib ]; then
+            python input/scraper.py
+          else
+            python input/scraper.py \
+              $(date -u -d '90 days ago' '+%Y-%m-%d') \
+              $(date -u -d '1 day ago'   '+%Y-%m-%d')
+          fi
 
       - name: Stitch xlsx → parquet
         run: python input/stitcher.py
