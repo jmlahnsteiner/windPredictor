@@ -80,14 +80,17 @@ def download_range(
     end: date,
     output_dir: str = DEFAULT_OUTPUT_DIR,
     skip_existing: bool = True,
+    force_dates: set | None = None,
     delay: float = 1.0,
 ) -> dict[str, bool]:
     """
     Download one xlsx per day for [start, end] inclusive.
-    Skips dates that already have a file on disk.
+    Skips dates that already have a file on disk unless they appear in
+    force_dates (e.g. today, to always fetch the latest partial-day data).
     Returns {date_str: success} for every date in the range.
     """
     os.makedirs(output_dir, exist_ok=True)
+    force_dates = force_dates or set()
     results: dict[str, bool] = {}
     session = requests.Session()
 
@@ -95,8 +98,9 @@ def download_range(
     while current <= end:
         date_str = current.strftime("%Y-%m-%d")
         out_path = os.path.join(output_dir, f"Wetterstation_{date_str}.xlsx")
+        forced = current in force_dates
 
-        if skip_existing and os.path.exists(out_path):
+        if skip_existing and not forced and os.path.exists(out_path):
             print(f"  [=] {date_str}: already exists, skipping")
             results[date_str] = True
             current += timedelta(days=1)

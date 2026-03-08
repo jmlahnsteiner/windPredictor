@@ -37,27 +37,28 @@ jobs:
       # Restore data.parquet and model weights from the previous run.
       # The run_id key ensures a fresh save each time; restore-keys picks
       # the most recent available cache when no exact match exists.
-      - name: Restore data cache
+      # data.parquet and predictions.db live in the repo (committed each run).
+      # Only the model weights need caching — they change rarely (retrain only
+      # when absent) and are too large to commit on every deploy.
+      - name: Restore model cache
         uses: actions/cache@v4
         with:
-          path: |
-            data.parquet
-            model/weights.joblib
-            predictions.db
-          key: wind-data-${{ github.run_id }}
-          restore-keys: wind-data-
+          path: model/weights.joblib
+          key: wind-model-${{ github.run_id }}
+          restore-keys: wind-model-
 
       - name: Download weather data
-        # On first run (no cache) pull 90 days so training has enough history
-        # for both classes; on subsequent runs only the last 7 days are needed.
+        # data.parquet already contains full history (committed to repo).
+        # Only download recent days + today (always re-fetched for latest readings).
+        # On first run (no model weights) pull 90 days so training has enough history.
         run: |
+          TODAY=$(date -u '+%Y-%m-%d')
           if [ -f model/weights.joblib ]; then
-            python input/scraper.py
+            START=$(date -u -d '3 days ago' '+%Y-%m-%d')
           else
-            python input/scraper.py \
-              $(date -u -d '90 days ago' '+%Y-%m-%d') \
-              $(date -u -d '1 day ago'   '+%Y-%m-%d')
+            START=$(date -u -d '90 days ago' '+%Y-%m-%d')
           fi
+          python input/scraper.py "$START" "$TODAY"
 
       - name: Stitch xlsx → parquet
         run: python input/stitcher.py
@@ -82,6 +83,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add index.html
+          [ -f data.parquet   ] && git add data.parquet   || true
           [ -f predictions.db ] && git add predictions.db || true
           if git diff --cached --quiet; then
             echo "Nothing changed — skipping commit."

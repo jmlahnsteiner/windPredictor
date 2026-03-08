@@ -42,11 +42,14 @@ def step_download(days: int) -> None:
     _banner(f"[1/4] Downloading last {days} day(s) of weather data")
     from input.scraper import download_range
 
-    end = date.today() - timedelta(days=1)      # yesterday (complete)
+    today = date.today()
+    # Include today so predictions use data up to the current moment.
+    # today's file is always re-fetched (partial-day data improves with each run).
+    end   = today
     start = end - timedelta(days=days - 1)
-    print(f"Range: {start} → {end}", flush=True)
+    print(f"Range: {start} → {end}  (today re-fetched for latest readings)", flush=True)
 
-    results = download_range(start, end)
+    results = download_range(start, end, force_dates={today})
     n_ok = sum(results.values())
     print(f"\nDownloaded: {n_ok}/{len(results)} day(s)", flush=True)
     if n_ok == 0:
@@ -127,11 +130,9 @@ def step_publish(dry_run: bool) -> None:
 
     msg = f"forecast: update {datetime.now().strftime('%-d %b %Y %H:%M')}"
 
-    # Stage index.html and the predictions history DB (if it exists)
-    to_stage = ["index.html"]
-    db_path = os.path.join(_ROOT, "predictions.db")
-    if os.path.exists(db_path):
-        to_stage.append("predictions.db")
+    # Stage output artifacts; only include files that actually exist
+    candidates = ["index.html", "data.parquet", "predictions.db"]
+    to_stage = [f for f in candidates if os.path.exists(os.path.join(_ROOT, f))]
     subprocess.run(["git", "add"] + to_stage, cwd=_ROOT, check=True)
 
     # Check whether there is actually something new to commit
