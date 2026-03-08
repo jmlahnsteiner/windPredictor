@@ -65,13 +65,48 @@ def predict_snapshot(
     prob = float(clf.predict_proba(X)[0][1])
     tgt = _target_date(snap_dt, cfg["sailing"]["window_start"])
 
-    return {
+    result = {
         "snapshot": snap_dt.isoformat(),
         "predicting_date": str(tgt),
         "sailing_window": f"{cfg['sailing']['window_start']}–{cfg['sailing']['window_end']}",
         "probability": round(prob, 3),
         "good": prob >= cfg["prediction"]["min_good_fraction"],
         "threshold": cfg["prediction"]["min_good_fraction"],
+    }
+
+    # Wind distribution during the target sailing window (available for
+    # historical dates; silently absent for future predictions).
+    window_data = _sailing_window_data(df, tgt, cfg)
+    if window_data:
+        result["window_wind"] = window_data
+
+    return result
+
+
+def _sailing_window_data(
+    df: pd.DataFrame,
+    tgt_date,
+    cfg: dict,
+) -> dict:
+    """
+    Extract wind speed and direction measurements from the sailing window
+    of tgt_date.  Returns {} when the window data is not yet available.
+    """
+    sc = cfg["sailing"]
+    try:
+        day_df = df.loc[str(tgt_date)]
+    except KeyError:
+        return {}
+
+    window = day_df.between_time(sc["window_start"], sc["window_end"])
+    needed = window[["wind_speed", "wind_direction"]].dropna()
+    if len(needed) < 3:
+        return {}
+
+    return {
+        "times":          [t.strftime("%H:%M") for t in needed.index],
+        "speeds_kn":      [round(float(v), 1) for v in needed["wind_speed"]],
+        "directions_deg": [round(float(v))     for v in needed["wind_direction"]],
     }
 
 

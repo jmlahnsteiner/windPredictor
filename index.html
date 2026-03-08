@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Wind Predictor</title>
+  <style>
+    /* ── Tokens ── */
+    :root {
+      --c-bg:       #f7f9fb;
+      --c-surface:  #ffffff;
+      --c-border:   #e2e8f0;
+      --c-text:     #1e293b;
+      --c-muted:    #64748b;
+      --c-good:     #16a34a;
+      --c-good-bg:  #f0fdf4;
+      --c-good-bd:  #bbf7d0;
+      --c-warn:     #d97706;
+      --c-warn-bg:  #fffbeb;
+      --c-poor:     #dc2626;
+      --c-poor-bg:  #fef2f2;
+      --c-poor-bd:  #fecaca;
+      --c-track:    #e2e8f0;
+      --radius:     12px;
+      --shadow:     0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --c-bg:       #0f172a;
+        --c-surface:  #1e293b;
+        --c-border:   #334155;
+        --c-text:     #e2e8f0;
+        --c-muted:    #94a3b8;
+        --c-good-bg:  #052e16;
+        --c-good-bd:  #166534;
+        --c-warn-bg:  #1c1209;
+        --c-poor-bg:  #1c0505;
+        --c-poor-bd:  #7f1d1d;
+        --c-track:    #334155;
+        --shadow:     0 1px 3px rgba(0,0,0,.4);
+      }
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--c-bg);
+      color: var(--c-text);
+      line-height: 1.5;
+      padding: 2rem 1rem 4rem;
+    }
+
+    /* ── Layout ── */
+    .page-wrap { max-width: 680px; margin: 0 auto; }
+
+    /* ── Page header ── */
+    .page-header { margin-bottom: 2rem; }
+    .page-header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .page-header .subtitle {
+      color: var(--c-muted);
+      font-size: 0.875rem;
+      margin-top: 0.25rem;
+    }
+
+    /* ── Day card ── */
+    .day-card {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+    }
+    .day-card.good { border-left: 4px solid var(--c-good); }
+    .day-card.poor { border-left: 4px solid var(--c-poor); }
+
+    /* card header */
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.25rem 0.75rem;
+      gap: 0.75rem;
+    }
+    .card-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card-icon { font-size: 1.4rem; line-height: 1; }
+    .card-title h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    /* badge */
+    .card-badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.2rem 0.65rem;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .card-badge.good {
+      background: var(--c-good-bg);
+      color: var(--c-good);
+      border: 1px solid var(--c-good-bd);
+    }
+    .card-badge.poor {
+      background: var(--c-poor-bg);
+      color: var(--c-poor);
+      border: 1px solid var(--c-poor-bd);
+    }
+
+    /* card body */
+    .card-body { padding: 0 1.25rem 1.25rem; }
+
+    /* probability bar */
+    .prob-section {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.85rem;
+    }
+    .prob-label {
+      font-size: 0.78rem;
+      color: var(--c-muted);
+      white-space: nowrap;
+      min-width: 130px;
+    }
+    .prob-bar-track {
+      flex: 1;
+      height: 8px;
+      background: var(--c-track);
+      border-radius: 999px;
+      position: relative;
+      overflow: visible;
+    }
+    .prob-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+    .threshold-mark {
+      position: absolute;
+      top: -4px;
+      width: 2px;
+      height: 16px;
+      background: var(--c-muted);
+      border-radius: 1px;
+      transform: translateX(-50%);
+    }
+    .prob-value {
+      font-size: 0.875rem;
+      font-weight: 700;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    /* meta chips */
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.85rem;
+    }
+    .meta-chip {
+      font-size: 0.72rem;
+      color: var(--c-muted);
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 999px;
+      padding: 0.15rem 0.6rem;
+    }
+
+    /* snapshots collapsible */
+    .snapshots summary {
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--c-muted);
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .snapshots summary::before {
+      content: "▸";
+      font-size: 0.7rem;
+      transition: transform 0.2s;
+    }
+    .snapshots[open] summary::before { transform: rotate(90deg); }
+    .snapshots summary::-webkit-details-marker { display: none; }
+
+    .snap-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.6rem;
+      font-size: 0.8rem;
+    }
+    .snap-row { border-top: 1px solid var(--c-border); }
+    .snap-row td { padding: 0.35rem 0.4rem; }
+    .snap-time  { color: var(--c-muted); width: 110px; }
+    .snap-dot   { width: 20px; text-align: center; }
+    .snap-good .snap-dot { color: var(--c-good); }
+    .snap-poor .snap-dot { color: var(--c-poor); }
+    .snap-prob  { width: 38px; text-align: right; font-weight: 600; }
+    .snap-bar-cell { }
+    .snap-bar {
+      height: 5px;
+      background: var(--c-muted);
+      border-radius: 999px;
+      opacity: 0.5;
+    }
+    .snap-good .snap-bar { background: var(--c-good); opacity: 0.7; }
+    .snap-poor .snap-bar { background: var(--c-poor); opacity: 0.5; }
+
+    /* ── Wind distribution charts ── */
+    .wind-svg .wv-lbl {
+      fill: var(--c-muted);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .wind-svg .wv-grid { stroke: var(--c-border); }
+
+    /* ── Forecast probability trend sparkline ── */
+    .dropout-svg .do-lbl {
+      fill: var(--c-muted);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .dropout-svg .do-track { stroke: var(--c-border); }
+
+    /* ── Footer ── */
+    .page-footer {
+      margin-top: 2.5rem;
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--c-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <header class="page-header">
+      <h1>⛵ Wind Predictor</h1>
+      <p class="subtitle">Sailing conditions forecast · Generated 8 March 2026, 17:20</p>
+    </header>
+
+    
+    <article class="day-card poor">
+      <header class="card-header">
+        <div class="card-title">
+          <span class="card-icon">🌧</span>
+          <h2>Tuesday, 10 March 2026</h2>
+        </div>
+        <div class="card-badge poor">Poor day</div>
+      </header>
+
+      <div class="card-body">
+        <div class="prob-section">
+          <span class="prob-label">Sailing probability</span>
+          <div class="prob-bar-track">
+            <div class="prob-bar-fill" style="width:5%; background:var(--c-poor)"></div>
+            <div class="threshold-mark" style="left:30%"
+                 title="Threshold 30%"></div>
+          </div>
+          <span class="prob-value">5%</span>
+        </div>
+
+        <div class="meta-row">
+          <span class="meta-chip">⏱ 08:00–16:00</span>
+          <span class="meta-chip">💨 2.0–10.0 kn</span>
+          <span class="meta-chip">Threshold 30%</span>
+        </div>
+
+        
+
+        <svg viewBox="0 0 360 38" style="width:100%;height:38px;display:block;margin-bottom:.5rem" class="dropout-svg" aria-hidden="true">
+<text x="49" y="16.5" font-size="6.5" text-anchor="end" class="do-lbl">Forecast</text>
+<line x1="52" y1="18.0" x2="352" y2="18.0" stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>
+<polyline points="58.0,22.5 302.0,23.0 346.0,23.0" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+<circle cx="58.0" cy="22.5" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="58.0" y="18.5" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">7%</text>
+<circle cx="302.0" cy="23.0" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="302.0" y="19.0" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">5%</text>
+<circle cx="346.0" cy="23.0" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="346.0" y="19.0" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">5%</text>
+<line x1="58.0" y1="24.0" x2="58.0" y2="27.0" stroke-width="0.75" class="do-track"/>
+<text x="58.0" y="37" font-size="6" text-anchor="start" class="do-lbl">00:00</text>
+<line x1="302.0" y1="24.0" x2="302.0" y2="27.0" stroke-width="0.75" class="do-track"/>
+<text x="302.0" y="37" font-size="6" text-anchor="middle" class="do-lbl">05:00</text>
+<line x1="346.0" y1="24.0" x2="346.0" y2="27.0" stroke-width="0.75" class="do-track"/>
+<text x="346.0" y="37" font-size="6" text-anchor="end" class="do-lbl">06:00</text>
+</svg>
+
+        <details class="snapshots">
+          <summary>All snapshots (3)</summary>
+          <table class="snap-table">
+            <tbody>
+            <tr class="snap-row snap-poor">
+              <td class="snap-time">Snapshot 00:00</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">7%</td>
+              <td class="snap-bar-cell">
+                <div class="snap-bar" style="width:7%"></div>
+              </td>
+            </tr>
+            <tr class="snap-row snap-poor">
+              <td class="snap-time">Snapshot 05:00</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">5%</td>
+              <td class="snap-bar-cell">
+                <div class="snap-bar" style="width:5%"></div>
+              </td>
+            </tr>
+            <tr class="snap-row snap-poor">
+              <td class="snap-time">Snapshot 06:00</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">5%</td>
+              <td class="snap-bar-cell">
+                <div class="snap-bar" style="width:5%"></div>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </details>
+      </div>
+    </article>
+    <article class="day-card poor">
+      <header class="card-header">
+        <div class="card-title">
+          <span class="card-icon">🌧</span>
+          <h2>Wednesday, 11 March 2026</h2>
+        </div>
+        <div class="card-badge poor">Poor day</div>
+      </header>
+
+      <div class="card-body">
+        <div class="prob-section">
+          <span class="prob-label">Sailing probability</span>
+          <div class="prob-bar-track">
+            <div class="prob-bar-fill" style="width:5%; background:var(--c-poor)"></div>
+            <div class="threshold-mark" style="left:30%"
+                 title="Threshold 30%"></div>
+          </div>
+          <span class="prob-value">5%</span>
+        </div>
+
+        <div class="meta-row">
+          <span class="meta-chip">⏱ 08:00–16:00</span>
+          <span class="meta-chip">💨 2.0–10.0 kn</span>
+          <span class="meta-chip">Threshold 30%</span>
+        </div>
+
+        
+
+        
+
+        <details class="snapshots">
+          <summary>All snapshots (1)</summary>
+          <table class="snap-table">
+            <tbody>
+            <tr class="snap-row snap-poor">
+              <td class="snap-time">Snapshot 18:00</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">5%</td>
+              <td class="snap-bar-cell">
+                <div class="snap-bar" style="width:5%"></div>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </details>
+      </div>
+    </article>
+
+    <footer class="page-footer">
+      <p>Sailing window 08:00–16:00 · Wind 2.0–10.0 kn · Good-day threshold 30%</p>
+    </footer>
+  </div>
+</body>
+</html>
