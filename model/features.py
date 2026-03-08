@@ -201,28 +201,57 @@ def extract_snapshot_features(
         "wind_dir_consistency_3h": _guarded_circ_std(past_3h["wind_direction"], MIN_3H),
         "wind_dir_consistency_6h": _guarded_circ_std(past_6h["wind_direction"], MIN_6H),
         "wind_dir_consistency_12h": _guarded_circ_std(past_12h["wind_direction"], MIN_12H),
-        # ── Thermal / sea-breeze features ────────────────────────────────────
-        # Thermal wind strength depends on land-sea (or land-lake) temperature
-        # contrast, which is driven by the diurnal heating cycle.
-        # These features encode the *potential* for thermally driven wind given
-        # the local overnight cooling and daytime heating state at snapshot time.
-        # NOTE: re-run model/train.py after adding these features.
+        # ── Absolute levels ───────────────────────────────────────────────────
+        # The 28-day anomaly features above capture synoptic departures (fronts,
+        # pressure systems) but systematically neutralise the seasonal signal:
+        # a sustained June heatwave has near-zero temperature *anomaly* yet
+        # maximum thermal-wind potential.  Keep both anomaly (for weather-system
+        # signals) and absolute level (for the seasonal/thermal baseline).
+        "temperature_mean_24h": float(past_24h["temperature"].mean()),
+        "temperature_max_24h":  float(past_24h["temperature"].max()),
+        "pressure_mean_24h":    float(past_24h["pressure_relative"].mean()),
+        # ── Lake–air temperature gradient ─────────────────────────────────────
+        # The primary driver of thermal lake wind: cold lake + hot land → strong
+        # convective flow toward the lake.  water_temperature changes on a
+        # timescale of days–weeks, so it encodes the accumulated lake heat budget
+        # and distinguishes early-season (cold lake, big gradient) from late-season
+        # (warm lake, reduced gradient) conditions.
+        # At the morning snapshot (06:00) air is cooler than the daytime peak but
+        # the lake temperature is stable — the difference is a reliable proxy for
+        # expected afternoon thermal strength.
+        "water_temperature": (
+            float(current["water_temperature"])
+            if "water_temperature" in df.columns
+            and pd.notna(current.get("water_temperature"))
+            else np.nan
+        ),
+        "air_water_temp_diff": (
+            float(current["temperature"] - current["water_temperature"])
+            if "water_temperature" in df.columns
+            and pd.notna(current.get("temperature"))
+            and pd.notna(current.get("water_temperature"))
+            else np.nan
+        ),
+        # ── Diurnal heating cycle ─────────────────────────────────────────────
+        # How large was the day/night temperature swing in the last 24h?
+        # A big swing → clear skies → strong daytime heating → good thermals.
         "diurnal_temp_range_24h": (
             float(past_24h["temperature"].max() - past_24h["temperature"].min())
             if n_24h >= 4 else np.nan
         ),
-        # How far into the heating cycle we are: zero in the morning, peaks
-        # in the early afternoon when thermals are strongest.
+        # How far into the heating cycle are we at snapshot time?
+        # Zero at the overnight minimum (morning snapshot), peaks at ~14:00.
         "temp_above_daily_min": (
             float(current["temperature"] - past_24h["temperature"].min())
             if n_24h >= 4 and pd.notna(current.get("temperature")) else np.nan
         ),
-        # Direct solar radiation — heating rate signal; zero at night is valid.
+        # Direct solar radiation — instantaneous heating rate.
+        # Zero at night is a valid and meaningful value, not missing data.
         "solar_mean_3h": (
             float(past_3h["solar"].mean())
             if "solar" in df.columns and n_3h >= MIN_3H else np.nan
         ),
-        # Dew-point depression: larger = drier air = clearer sky = stronger thermals.
+        # Dew-point depression: larger = drier air = clearer sky = more solar heating.
         "dew_point_depression": (
             float(current["temperature"] - current["dew_point"])
             if "dew_point" in df.columns
@@ -230,7 +259,7 @@ def extract_snapshot_features(
             and pd.notna(current.get("dew_point"))
             else np.nan
         ),
-        # Low overnight humidity → clear skies → strong daytime heating.
+        # Low overnight humidity → clear skies overnight → strong daytime heating.
         "humidity_min_24h": (
             float(past_24h["humidity"].min()) if n_24h >= 4 else np.nan
         ),
