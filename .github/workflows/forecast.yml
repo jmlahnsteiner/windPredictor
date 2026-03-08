@@ -81,7 +81,8 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html predictions.db
+          git add index.html
+          [ -f predictions.db ] && git add predictions.db || true
           if git diff --cached --quiet; then
             echo "Nothing changed — skipping commit."
           else

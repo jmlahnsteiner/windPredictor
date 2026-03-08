@@ -127,8 +127,12 @@ def step_publish(dry_run: bool) -> None:
 
     msg = f"forecast: update {datetime.now().strftime('%-d %b %Y %H:%M')}"
 
-    # Stage index.html and the predictions history DB
-    subprocess.run(["git", "add", "index.html", "predictions.db"], cwd=_ROOT, check=True)
+    # Stage index.html and the predictions history DB (if it exists)
+    to_stage = ["index.html"]
+    db_path = os.path.join(_ROOT, "predictions.db")
+    if os.path.exists(db_path):
+        to_stage.append("predictions.db")
+    subprocess.run(["git", "add"] + to_stage, cwd=_ROOT, check=True)
 
     # Check whether there is actually something new to commit
     diff = subprocess.run(
