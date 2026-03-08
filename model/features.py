@@ -137,10 +137,13 @@ def extract_snapshot_features(
     past_3h  = past[past.index >= snap_dt - pd.Timedelta("3h")]
     past_6h  = past[past.index >= snap_dt - pd.Timedelta("6h")]
     past_12h = past[past.index >= snap_dt - pd.Timedelta("12h")]
+    past_18h = past[past.index >= snap_dt - pd.Timedelta("18h")]
     past_24h = past[past.index >= snap_dt - pd.Timedelta("24h")]
 
-    # Point counts per window — used both to gate unreliable features and as
-    # an explicit feature so the model can learn to trust dense windows more.
+    # Point counts per window — used only to gate unreliable features.
+    # NOTE: do NOT include data density as a model feature; it correlates
+    # with how recently data was collected (recent = 5-min resolution = dense),
+    # which would teach the model to predict based on data age, not weather.
     n_3h  = past_3h["wind_direction"].notna().sum()
     n_6h  = past_6h["wind_direction"].notna().sum()
     n_12h = past_12h["wind_direction"].notna().sum()
@@ -164,24 +167,19 @@ def extract_snapshot_features(
     wind_dir = current.get("wind_direction", np.nan)
 
     return {
-        # Time context — month dropped; sin/cos_doy kept as a weak seasonal
-        # anchor (e.g. nobody sails in January regardless of wind conditions)
+        # Time context
         "snapshot_hour": snap_dt.hour,
         "day_of_week":   snap_dt.dayofweek,
         "sin_doy":       np.sin(2 * np.pi * snap_dt.dayofyear / 365),
         "cos_doy":       np.cos(2 * np.pi * snap_dt.dayofyear / 365),
-        # Data density: points per hour in the last 24h, normalised so that
-        # 5-min resolution (12 pts/hr) → 1.0 and hourly → ~0.083.
-        # Lets the model discount features computed from sparse windows.
-        "data_density": n_24h / 24 / 12,
-        # Anomalies: current value minus 28-day trailing mean.
-        # These capture synoptic weather signals (fronts, pressure systems)
-        # rather than the seasonal baseline.
-        "temperature_anomaly":   _anomaly(df["temperature"], snap_dt),
-        "humidity_anomaly":      _anomaly(df["humidity"], snap_dt),
-        "pressure_anomaly":      _anomaly(df["pressure_relative"], snap_dt),
-        "wind_speed_anomaly":    _anomaly(df["wind_speed"], snap_dt),
-        "wind_gust_anomaly":     _anomaly(df["wind_gust"], snap_dt),
+        # Anomalies: departure from 28-day trailing mean.
+        # Captures synoptic signals (fronts, pressure systems).
+        # Wind-speed anomaly removed: thermal wind hasn't formed at the morning
+        # snapshot, so wind_speed ≈ 0 on BOTH good and bad days — the anomaly
+        # is near-zero noise that actively misleads the model.
+        "temperature_anomaly": _anomaly(df["temperature"], snap_dt),
+        "humidity_anomaly":    _anomaly(df["humidity"], snap_dt),
+        "pressure_anomaly":    _anomaly(df["pressure_relative"], snap_dt),
         # Wind direction as unit-circle components (no seasonal baseline needed)
         "wind_dir_sin": np.sin(np.radians(wind_dir)),
         "wind_dir_cos": np.cos(np.radians(wind_dir)),
@@ -190,11 +188,17 @@ def extract_snapshot_features(
         "temp_trend_3h":      _trend(past_3h["temperature"]),
         "pressure_trend_6h":  _trend(past_6h["pressure_relative"]),
         "pressure_trend_12h": _trend(past_12h["pressure_relative"]),
-        # Rolling means — unbiased for any n≥1, so no guard needed
+        # Rolling means and maxima.
+        # At a 06:00 morning snapshot, past_18h reaches back to yesterday 12:00,
+        # which covers the peak thermal window (≈10:00–16:00) of the previous day.
+        # wind_speed_max_18h / _24h therefore capture "did yesterday have thermals?"
+        # — the single strongest predictor of today's thermal wind at a lake site.
         "wind_speed_mean_3h":  past_3h["wind_speed"].mean(),
         "wind_speed_mean_6h":  past_6h["wind_speed"].mean(),
         "wind_speed_mean_12h": past_12h["wind_speed"].mean(),
         "wind_speed_max_3h":   past_3h["wind_speed"].max(),
+        "wind_speed_max_18h":  past_18h["wind_speed"].max(),
+        "wind_speed_max_24h":  past_24h["wind_speed"].max(),
         # Variability/consistency stats — gated: a single reading gives a
         # spuriously perfect score (std=0, circ_std=0) which would bias the model
         "wind_speed_std_3h":       _guarded_std(past_3h["wind_speed"], MIN_3H),
