@@ -269,6 +269,43 @@
     }
     .dropout-svg .do-track { stroke: var(--c-border); }
 
+    /* ── History section ── */
+    .history-section {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .history-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.6rem;
+    }
+    .history-days {
+      font-weight: 400;
+      color: var(--c-muted);
+      font-size: 0.8rem;
+    }
+    .history-dots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.15rem;
+      margin-bottom: 0.5rem;
+      line-height: 1;
+      letter-spacing: 0.05em;
+    }
+    .history-legend {
+      font-size: 0.72rem;
+      color: var(--c-muted);
+      margin-bottom: 0.4rem;
+    }
+    .history-stats {
+      font-size: 0.78rem;
+      color: var(--c-text);
+    }
+
     /* ── Footer ── */
     .page-footer {
       margin-top: 2.5rem;
@@ -282,28 +319,36 @@
   <div class="page-wrap">
     <header class="page-header">
       <h1>⛵ Wind Predictor</h1>
-      <p class="subtitle">Sailing conditions forecast · Generated 8 March 2026, 21:27</p>
+      <p class="subtitle">Sailing conditions forecast · Generated 8 March 2026, 21:04</p>
     </header>
 
     
-    <article class="day-card good">
+    <section class="history-section">
+      <h3 class="history-title">Prediction history <span class="history-days">(60d)</span></h3>
+      <div class="history-dots"><span style="color:#94a3b8;font-size:1.3rem;" title="2026-03-08: predicted poor (5%) — outcome pending">·</span><span style="color:#94a3b8;font-size:1.3rem;" title="2026-03-09: predicted poor (3%) — outcome pending">·</span></div>
+      <div class="history-legend"><span style="color:#16a34a">■</span> correct &nbsp;<span style="color:#d97706">□</span> false alarm &nbsp;<span style="color:#2563eb">□</span> missed &nbsp;<span style="color:#94a3b8">·</span> pending</div>
+      
+    </section>
+
+    
+    <article class="day-card poor">
       <header class="card-header">
         <div class="card-title">
-          <span class="card-icon">⛵</span>
-          <h2>Tuesday, 3 June 2025</h2>
+          <span class="card-icon">🌧</span>
+          <h2>Sunday, 8 March 2026</h2>
         </div>
-        <div class="card-badge good">Good day</div>
+        <div class="card-badge poor">Poor day</div>
       </header>
 
       <div class="card-body">
         <div class="prob-section">
           <span class="prob-label">Sailing probability</span>
           <div class="prob-bar-track">
-            <div class="prob-bar-fill" style="width:84%; background:var(--c-good)"></div>
+            <div class="prob-bar-fill" style="width:5%; background:var(--c-poor)"></div>
             <div class="threshold-mark" style="left:30%"
                  title="Threshold 30%"></div>
           </div>
-          <span class="prob-value">84%</span>
+          <span class="prob-value">5%</span>
         </div>
 
         <div class="meta-row">
@@ -312,128 +357,24 @@
           <span class="meta-chip">Threshold 30%</span>
         </div>
 
-        <svg viewBox="0 0 360 155" style="width:100%;height:155px;display:block;margin-bottom:.75rem" class="wind-svg" aria-hidden="true">
-<text x="120.0" y="11" font-size="7" text-anchor="middle" class="wv-lbl">Wind speed (kn)</text>
-<rect x="28" y="40.2" width="184" height="80.7" fill="#16a34a" fill-opacity="0.10"/>
-<line x1="28" y1="137.0" x2="212" y2="137.0" stroke-width="0.5" class="wv-grid"/>
-<text x="25" y="139.5" font-size="6.5" text-anchor="end" class="wv-lbl">0</text>
-<line x1="28" y1="120.9" x2="212" y2="120.9" stroke-width="0.5" class="wv-grid"/>
-<text x="25" y="123.4" font-size="6.5" text-anchor="end" class="wv-lbl">2</text>
-<line x1="28" y1="40.2" x2="212" y2="40.2" stroke-width="0.5" class="wv-grid"/>
-<text x="25" y="42.7" font-size="6.5" text-anchor="end" class="wv-lbl">12</text>
-<polygon points="28.0,130.0 39.5,123.1 51.0,122.1 62.5,119.2 74.0,109.8 85.5,108.4 97.0,102.8 108.5,103.6 120.0,102.9 131.5,103.8 143.0,102.0 154.5,104.2 166.0,101.4 177.5,102.1 189.0,101.5 200.5,102.7 212.0,101.0 212.0,124.1 200.5,121.6 189.0,119.9 177.5,117.1 166.0,113.5 154.5,115.3 143.0,114.6 131.5,116.3 120.0,114.6 108.5,119.7 97.0,125.1 85.5,126.9 74.0,132.6 62.5,133.5 51.0,137.0 39.5,137.0 28.0,137.0" fill="#3b82f6" fill-opacity="0.13"/>
-<line x1="28.0" y1="130.0" x2="28.0" y2="137.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="25.0" y1="130.0" x2="31.0" y2="130.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="25.0" y1="137.0" x2="31.0" y2="137.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="39.5" y1="123.1" x2="39.5" y2="137.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="36.5" y1="123.1" x2="42.5" y2="123.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="36.5" y1="137.0" x2="42.5" y2="137.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="51.0" y1="122.1" x2="51.0" y2="137.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="48.0" y1="122.1" x2="54.0" y2="122.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="48.0" y1="137.0" x2="54.0" y2="137.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="62.5" y1="119.2" x2="62.5" y2="133.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="59.5" y1="119.2" x2="65.5" y2="119.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="59.5" y1="133.5" x2="65.5" y2="133.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="74.0" y1="109.8" x2="74.0" y2="132.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="71.0" y1="109.8" x2="77.0" y2="109.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="71.0" y1="132.6" x2="77.0" y2="132.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="85.5" y1="108.4" x2="85.5" y2="126.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="82.5" y1="108.4" x2="88.5" y2="108.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="82.5" y1="126.9" x2="88.5" y2="126.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="97.0" y1="102.8" x2="97.0" y2="125.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="94.0" y1="102.8" x2="100.0" y2="102.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="94.0" y1="125.1" x2="100.0" y2="125.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="108.5" y1="103.6" x2="108.5" y2="119.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="105.5" y1="103.6" x2="111.5" y2="103.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="105.5" y1="119.7" x2="111.5" y2="119.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="120.0" y1="102.9" x2="120.0" y2="114.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="117.0" y1="102.9" x2="123.0" y2="102.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="117.0" y1="114.6" x2="123.0" y2="114.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="131.5" y1="103.8" x2="131.5" y2="116.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="128.5" y1="103.8" x2="134.5" y2="103.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="128.5" y1="116.3" x2="134.5" y2="116.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="143.0" y1="102.0" x2="143.0" y2="114.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="140.0" y1="102.0" x2="146.0" y2="102.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="140.0" y1="114.6" x2="146.0" y2="114.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="154.5" y1="104.2" x2="154.5" y2="115.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="151.5" y1="104.2" x2="157.5" y2="104.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="151.5" y1="115.3" x2="157.5" y2="115.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="166.0" y1="101.4" x2="166.0" y2="113.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="163.0" y1="101.4" x2="169.0" y2="101.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="163.0" y1="113.5" x2="169.0" y2="113.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="177.5" y1="102.1" x2="177.5" y2="117.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="174.5" y1="102.1" x2="180.5" y2="102.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="174.5" y1="117.1" x2="180.5" y2="117.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="189.0" y1="101.5" x2="189.0" y2="119.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="186.0" y1="101.5" x2="192.0" y2="101.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="186.0" y1="119.9" x2="192.0" y2="119.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="200.5" y1="102.7" x2="200.5" y2="121.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="197.5" y1="102.7" x2="203.5" y2="102.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="197.5" y1="121.6" x2="203.5" y2="121.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="212.0" y1="101.0" x2="212.0" y2="124.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="209.0" y1="101.0" x2="215.0" y2="101.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="209.0" y1="124.1" x2="215.0" y2="124.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<polyline points="28.0,133.8 39.5,130.9 51.0,129.7 62.5,126.4 74.0,121.2 85.5,117.6 97.0,113.9 108.5,111.7 120.0,108.8 131.5,110.1 143.0,108.3 154.5,109.7 166.0,107.5 177.5,109.6 189.0,110.7 200.5,112.2 212.0,112.5" fill="none" stroke="#3b82f6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
-<circle cx="28.0" cy="137.0" r="3" fill="#94a3b8" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="39.5" cy="133.0" r="3" fill="#94a3b8" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="51.0" cy="131.4" r="3" fill="#94a3b8" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="62.5" cy="122.5" r="3" fill="#94a3b8" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="74.0" cy="124.9" r="3" fill="#94a3b8" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="85.5" cy="120.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="97.0" cy="107.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="108.5" cy="113.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="120.0" cy="103.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="131.5" cy="113.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="143.0" cy="105.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="154.5" cy="113.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="166.0" cy="104.7" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="177.5" cy="111.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="189.0" cy="102.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="200.5" cy="116.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="212.0" cy="119.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<text x="210" y="25" font-size="6" text-anchor="end" fill="#3b82f6" font-family="sans-serif" opacity="0.65">80 % CI</text>
-<text x="28.0" y="153" font-size="6.5" text-anchor="start" class="wv-lbl">08:00</text>
-<text x="74.0" y="153" font-size="6.5" text-anchor="middle" class="wv-lbl">10:00</text>
-<text x="120.0" y="153" font-size="6.5" text-anchor="middle" class="wv-lbl">12:00</text>
-<text x="166.0" y="153" font-size="6.5" text-anchor="middle" class="wv-lbl">14:00</text>
-<text x="212.0" y="153" font-size="6.5" text-anchor="end" class="wv-lbl">16:00</text>
-<line x1="217" y1="6" x2="217" y2="149" stroke-width="0.5" class="wv-grid"/>
-<text x="289.0" y="11" font-size="7" text-anchor="middle" class="wv-lbl">Wind direction</text>
-<circle cx="289.0" cy="83.5" r="49.0" fill="none" stroke-width="0.6" class="wv-grid"/>
-<path d="M 289.0,83.5 L 287.3,79.4 A 4.5,4.5 0 0,1 290.7,79.4 Z" fill="#3b82f6" fill-opacity="0.35" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 307.8,38.2 A 49.0,49.0 0 0,1 334.3,64.7 Z" fill="#3b82f6" fill-opacity="0.90" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 293.1,81.8 A 4.5,4.5 0 0,1 293.1,85.2 Z" fill="#3b82f6" fill-opacity="0.35" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 293.1,85.2 A 4.5,4.5 0 0,1 290.7,87.6 Z" fill="#3b82f6" fill-opacity="0.35" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 290.7,87.6 A 4.5,4.5 0 0,1 287.3,87.6 Z" fill="#3b82f6" fill-opacity="0.35" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 285.6,91.7 A 8.9,8.9 0 0,1 280.8,86.9 Z" fill="#3b82f6" fill-opacity="0.41" stroke="white" stroke-width="0.7"/>
-<text x="289.0" y="26.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">N</text>
-<text x="331.4" y="43.6" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">NE</text>
-<text x="349.0" y="86.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">E</text>
-<text x="331.4" y="128.4" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">SE</text>
-<text x="289.0" y="146.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">S</text>
-<text x="246.6" y="128.4" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">SW</text>
-<text x="229.0" y="86.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">W</text>
-<text x="246.6" y="43.6" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">NW</text>
-<circle cx="289.0" cy="83.5" r="2.5" fill="#64748b" opacity="0.5"/>
-</svg>
+        
 
-        <div class="stats-block"><div class="stats-row stats-observed"><span class="stats-label">Observed</span><span class="stats-chip">avg 2.5 kn</span><span class="stats-chip">max 4.3 kn / gust 8.9 kn</span><span class="stats-chip">71% in range</span><span class="stats-chip">dir ±58.3°</span></div></div>
-
+        
 
         <svg viewBox="0 0 360 38" style="width:100%;height:38px;display:block;margin-bottom:.5rem" class="dropout-svg" aria-hidden="true">
 <text x="49" y="16.5" font-size="6.5" text-anchor="end" class="do-lbl">Forecast</text>
 <line x1="52" y1="18.0" x2="352" y2="18.0" stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>
-<polyline points="58.0,6.6 180.6,8.4 266.3,6.6 309.1,7.4 346.0,7.2" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
-<circle cx="58.0" cy="6.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8"/>
-<text x="58.0" y="2.6" font-size="6" fill="#16a34a" text-anchor="middle" font-weight="bold" font-family="sans-serif">87%</text>
-<circle cx="180.6" cy="8.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8"/>
-<text x="180.6" y="4.4" font-size="6" fill="#16a34a" text-anchor="middle" font-weight="bold" font-family="sans-serif">78%</text>
-<circle cx="266.3" cy="6.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8"/>
-<text x="266.3" y="2.6" font-size="6" fill="#16a34a" text-anchor="middle" font-weight="bold" font-family="sans-serif">87%</text>
-<circle cx="309.1" cy="7.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8"/>
-<text x="309.1" y="3.4" font-size="6" fill="#16a34a" text-anchor="middle" font-weight="bold" font-family="sans-serif">83%</text>
-<circle cx="346.0" cy="7.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8"/>
-<text x="346.0" y="3.2" font-size="6" fill="#16a34a" text-anchor="middle" font-weight="bold" font-family="sans-serif">84%</text>
+<polyline points="58.0,20.7 180.6,22.1 266.3,21.8 309.1,23.0 346.0,23.0" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+<circle cx="58.0" cy="20.7" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="58.0" y="16.7" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">16%</text>
+<circle cx="180.6" cy="22.1" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="180.6" y="18.1" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">10%</text>
+<circle cx="266.3" cy="21.8" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="266.3" y="17.8" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">11%</text>
+<circle cx="309.1" cy="23.0" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="309.1" y="19.0" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">5%</text>
+<circle cx="346.0" cy="23.0" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="346.0" y="19.0" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">5%</text>
 <line x1="58.0" y1="24.0" x2="58.0" y2="27.0" stroke-width="0.75" class="do-track"/>
 <text x="58.0" y="37" font-size="6" text-anchor="start" class="do-lbl">00:00</text>
 <line x1="180.6" y1="24.0" x2="180.6" y2="27.0" stroke-width="0.75" class="do-track"/>
@@ -450,44 +391,44 @@
           <summary>All snapshots (5)</summary>
           <table class="snap-table">
             <tbody>
-            <tr class="snap-row snap-good">
+            <tr class="snap-row snap-poor">
               <td class="snap-time">Snapshot 00:00</td>
-              <td class="snap-dot">●</td>
-              <td class="snap-prob">87%</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">16%</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:87%"></div>
+                <div class="snap-bar" style="width:16%"></div>
               </td>
             </tr>
-            <tr class="snap-row snap-good">
+            <tr class="snap-row snap-poor">
               <td class="snap-time">Snapshot 03:00</td>
-              <td class="snap-dot">●</td>
-              <td class="snap-prob">78%</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">10%</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:78%"></div>
+                <div class="snap-bar" style="width:10%"></div>
               </td>
             </tr>
-            <tr class="snap-row snap-good">
+            <tr class="snap-row snap-poor">
               <td class="snap-time">Snapshot 05:00</td>
-              <td class="snap-dot">●</td>
-              <td class="snap-prob">87%</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">11%</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:87%"></div>
+                <div class="snap-bar" style="width:11%"></div>
               </td>
             </tr>
-            <tr class="snap-row snap-good">
+            <tr class="snap-row snap-poor">
               <td class="snap-time">Snapshot 06:00</td>
-              <td class="snap-dot">●</td>
-              <td class="snap-prob">83%</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">5%</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:83%"></div>
+                <div class="snap-bar" style="width:5%"></div>
               </td>
             </tr>
-            <tr class="snap-row snap-good">
+            <tr class="snap-row snap-poor">
               <td class="snap-time">Snapshot 07:00</td>
-              <td class="snap-dot">●</td>
-              <td class="snap-prob">84%</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">5%</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:84%"></div>
+                <div class="snap-bar" style="width:5%"></div>
               </td>
             </tr>
             </tbody>
@@ -495,24 +436,24 @@
         </details>
       </div>
     </article>
-    <article class="day-card good">
+    <article class="day-card poor">
       <header class="card-header">
         <div class="card-title">
-          <span class="card-icon">⛵</span>
-          <h2>Wednesday, 4 June 2025</h2>
+          <span class="card-icon">🌧</span>
+          <h2>Monday, 9 March 2026</h2>
         </div>
-        <div class="card-badge good">Good day</div>
+        <div class="card-badge poor">Poor day</div>
       </header>
 
       <div class="card-body">
         <div class="prob-section">
           <span class="prob-label">Sailing probability</span>
           <div class="prob-bar-track">
-            <div class="prob-bar-fill" style="width:79%; background:var(--c-good)"></div>
+            <div class="prob-bar-fill" style="width:3%; background:var(--c-poor)"></div>
             <div class="threshold-mark" style="left:30%"
                  title="Threshold 30%"></div>
           </div>
-          <span class="prob-value">79%</span>
+          <span class="prob-value">3%</span>
         </div>
 
         <div class="meta-row">
@@ -521,120 +462,18 @@
           <span class="meta-chip">Threshold 30%</span>
         </div>
 
-        <svg viewBox="0 0 360 155" style="width:100%;height:155px;display:block;margin-bottom:.75rem" class="wind-svg" aria-hidden="true">
-<text x="120.0" y="11" font-size="7" text-anchor="middle" class="wv-lbl">Wind speed (kn)</text>
-<rect x="28" y="40.2" width="184" height="80.7" fill="#16a34a" fill-opacity="0.10"/>
-<line x1="28" y1="137.0" x2="212" y2="137.0" stroke-width="0.5" class="wv-grid"/>
-<text x="25" y="139.5" font-size="6.5" text-anchor="end" class="wv-lbl">0</text>
-<line x1="28" y1="120.9" x2="212" y2="120.9" stroke-width="0.5" class="wv-grid"/>
-<text x="25" y="123.4" font-size="6.5" text-anchor="end" class="wv-lbl">2</text>
-<line x1="28" y1="40.2" x2="212" y2="40.2" stroke-width="0.5" class="wv-grid"/>
-<text x="25" y="42.7" font-size="6.5" text-anchor="end" class="wv-lbl">12</text>
-<polygon points="28.0,117.0 39.5,113.6 51.0,108.1 62.5,107.9 74.0,107.0 85.5,107.9 97.0,103.4 108.5,99.8 120.0,99.1 131.5,94.1 143.0,89.1 154.5,89.1 166.0,88.6 177.5,86.7 189.0,89.1 200.5,99.4 212.0,106.0 212.0,130.9 200.5,129.1 189.0,128.8 177.5,117.6 166.0,110.2 154.5,106.2 143.0,106.5 131.5,111.5 120.0,113.0 108.5,115.5 97.0,114.8 85.5,115.1 74.0,118.6 62.5,121.9 51.0,127.5 39.5,127.3 28.0,128.0" fill="#3b82f6" fill-opacity="0.13"/>
-<line x1="28.0" y1="117.0" x2="28.0" y2="128.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="25.0" y1="117.0" x2="31.0" y2="117.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="25.0" y1="128.0" x2="31.0" y2="128.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="39.5" y1="113.6" x2="39.5" y2="127.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="36.5" y1="113.6" x2="42.5" y2="113.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="36.5" y1="127.3" x2="42.5" y2="127.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="51.0" y1="108.1" x2="51.0" y2="127.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="48.0" y1="108.1" x2="54.0" y2="108.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="48.0" y1="127.5" x2="54.0" y2="127.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="62.5" y1="107.9" x2="62.5" y2="121.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="59.5" y1="107.9" x2="65.5" y2="107.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="59.5" y1="121.9" x2="65.5" y2="121.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="74.0" y1="107.0" x2="74.0" y2="118.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="71.0" y1="107.0" x2="77.0" y2="107.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="71.0" y1="118.6" x2="77.0" y2="118.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="85.5" y1="107.9" x2="85.5" y2="115.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="82.5" y1="107.9" x2="88.5" y2="107.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="82.5" y1="115.1" x2="88.5" y2="115.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="97.0" y1="103.4" x2="97.0" y2="114.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="94.0" y1="103.4" x2="100.0" y2="103.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="94.0" y1="114.8" x2="100.0" y2="114.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="108.5" y1="99.8" x2="108.5" y2="115.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="105.5" y1="99.8" x2="111.5" y2="99.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="105.5" y1="115.5" x2="111.5" y2="115.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="120.0" y1="99.1" x2="120.0" y2="113.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="117.0" y1="99.1" x2="123.0" y2="99.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="117.0" y1="113.0" x2="123.0" y2="113.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="131.5" y1="94.1" x2="131.5" y2="111.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="128.5" y1="94.1" x2="134.5" y2="94.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="128.5" y1="111.5" x2="134.5" y2="111.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="143.0" y1="89.1" x2="143.0" y2="106.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="140.0" y1="89.1" x2="146.0" y2="89.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="140.0" y1="106.5" x2="146.0" y2="106.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="154.5" y1="89.1" x2="154.5" y2="106.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="151.5" y1="89.1" x2="157.5" y2="89.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="151.5" y1="106.2" x2="157.5" y2="106.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="166.0" y1="88.6" x2="166.0" y2="110.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="163.0" y1="88.6" x2="169.0" y2="88.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="163.0" y1="110.2" x2="169.0" y2="110.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="177.5" y1="86.7" x2="177.5" y2="117.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="174.5" y1="86.7" x2="180.5" y2="86.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="174.5" y1="117.6" x2="180.5" y2="117.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="189.0" y1="89.1" x2="189.0" y2="128.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="186.0" y1="89.1" x2="192.0" y2="89.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="186.0" y1="128.8" x2="192.0" y2="128.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="200.5" y1="99.4" x2="200.5" y2="129.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="197.5" y1="99.4" x2="203.5" y2="99.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="197.5" y1="129.1" x2="203.5" y2="129.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="212.0" y1="106.0" x2="212.0" y2="130.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="209.0" y1="106.0" x2="215.0" y2="106.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="209.0" y1="130.9" x2="215.0" y2="130.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<polyline points="28.0,122.5 39.5,120.5 51.0,117.8 62.5,114.9 74.0,112.8 85.5,111.5 97.0,109.1 108.5,107.6 120.0,106.0 131.5,102.8 143.0,97.8 154.5,97.6 166.0,99.4 177.5,102.2 189.0,108.9 200.5,114.2 212.0,118.4" fill="none" stroke="#3b82f6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
-<circle cx="28.0" cy="127.3" r="3" fill="#94a3b8" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="39.5" cy="120.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="51.0" cy="119.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="62.5" cy="114.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="74.0" cy="107.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="85.5" cy="112.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="97.0" cy="110.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="108.5" cy="112.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="120.0" cy="102.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="131.5" cy="99.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="143.0" cy="104.7" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="154.5" cy="94.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="166.0" cy="87.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="177.5" cy="101.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="189.0" cy="108.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="200.5" cy="118.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="212.0" cy="128.1" r="3" fill="#94a3b8" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<text x="210" y="25" font-size="6" text-anchor="end" fill="#3b82f6" font-family="sans-serif" opacity="0.65">80 % CI</text>
-<text x="28.0" y="153" font-size="6.5" text-anchor="start" class="wv-lbl">08:00</text>
-<text x="74.0" y="153" font-size="6.5" text-anchor="middle" class="wv-lbl">10:00</text>
-<text x="120.0" y="153" font-size="6.5" text-anchor="middle" class="wv-lbl">12:00</text>
-<text x="166.0" y="153" font-size="6.5" text-anchor="middle" class="wv-lbl">14:00</text>
-<text x="212.0" y="153" font-size="6.5" text-anchor="end" class="wv-lbl">16:00</text>
-<line x1="217" y1="6" x2="217" y2="149" stroke-width="0.5" class="wv-grid"/>
-<text x="289.0" y="11" font-size="7" text-anchor="middle" class="wv-lbl">Wind direction</text>
-<circle cx="289.0" cy="83.5" r="49.0" fill="none" stroke-width="0.6" class="wv-grid"/>
-<path d="M 289.0,83.5 L 284.8,73.4 A 10.9,10.9 0 0,1 293.2,73.4 Z" fill="#3b82f6" fill-opacity="0.43" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 307.8,38.2 A 49.0,49.0 0 0,1 334.3,64.7 Z" fill="#3b82f6" fill-opacity="0.90" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 294.0,81.4 A 5.4,5.4 0 0,1 294.0,85.6 Z" fill="#3b82f6" fill-opacity="0.37" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 299.4,108.7 A 27.2,27.2 0 0,1 278.6,108.7 Z" fill="#3b82f6" fill-opacity="0.63" stroke="white" stroke-width="0.7"/>
-<text x="289.0" y="26.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">N</text>
-<text x="331.4" y="43.6" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">NE</text>
-<text x="349.0" y="86.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">E</text>
-<text x="331.4" y="128.4" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">SE</text>
-<text x="289.0" y="146.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">S</text>
-<text x="246.6" y="128.4" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">SW</text>
-<text x="229.0" y="86.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">W</text>
-<text x="246.6" y="43.6" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">NW</text>
-<circle cx="289.0" cy="83.5" r="2.5" fill="#64748b" opacity="0.5"/>
-</svg>
+        
 
-        <div class="stats-block"><div class="stats-row stats-observed"><span class="stats-label">Observed</span><span class="stats-chip">avg 3.3 kn</span><span class="stats-chip">max 6.1 kn / gust 12.1 kn</span><span class="stats-chip">88% in range</span><span class="stats-chip">dir ±68.2°</span></div></div>
-
+        
 
         <svg viewBox="0 0 360 38" style="width:100%;height:38px;display:block;margin-bottom:.5rem" class="dropout-svg" aria-hidden="true">
 <text x="49" y="16.5" font-size="6.5" text-anchor="end" class="do-lbl">Forecast</text>
 <line x1="52" y1="18.0" x2="352" y2="18.0" stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>
-<polyline points="52.0,8.9 352.0,8.2" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
-<circle cx="52.0" cy="8.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8"/>
-<text x="52.0" y="4.9" font-size="6" fill="#16a34a" text-anchor="middle" font-weight="bold" font-family="sans-serif">76%</text>
-<circle cx="352.0" cy="8.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8"/>
-<text x="352.0" y="4.2" font-size="6" fill="#16a34a" text-anchor="middle" font-weight="bold" font-family="sans-serif">79%</text>
+<polyline points="52.0,23.3 352.0,23.4" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+<circle cx="52.0" cy="23.3" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="52.0" y="19.3" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">3%</text>
+<circle cx="352.0" cy="23.4" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="352.0" y="19.4" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">3%</text>
 <line x1="52.0" y1="24.0" x2="52.0" y2="27.0" stroke-width="0.75" class="do-track"/>
 <text x="52.0" y="37" font-size="6" text-anchor="start" class="do-lbl">18:00</text>
 <line x1="352.0" y1="24.0" x2="352.0" y2="27.0" stroke-width="0.75" class="do-track"/>
@@ -645,20 +484,20 @@
           <summary>All snapshots (2)</summary>
           <table class="snap-table">
             <tbody>
-            <tr class="snap-row snap-good">
+            <tr class="snap-row snap-poor">
               <td class="snap-time">Snapshot 18:00</td>
-              <td class="snap-dot">●</td>
-              <td class="snap-prob">76%</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">3%</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:76%"></div>
+                <div class="snap-bar" style="width:3%"></div>
               </td>
             </tr>
-            <tr class="snap-row snap-good">
+            <tr class="snap-row snap-poor">
               <td class="snap-time">Snapshot 20:00</td>
-              <td class="snap-dot">●</td>
-              <td class="snap-prob">79%</td>
+              <td class="snap-dot">○</td>
+              <td class="snap-prob">3%</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:79%"></div>
+                <div class="snap-bar" style="width:3%"></div>
               </td>
             </tr>
             </tbody>
