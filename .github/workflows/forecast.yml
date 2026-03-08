@@ -1,0 +1,80 @@
+name: Wind Forecast
+
+on:
+  # Run at each configured snapshot time (config.toml: ["06:00","18:00","00:00","05:00"]).
+  # GitHub Actions cron is UTC — adjust offsets below for your local timezone.
+  # Example below assumes CET (UTC+1); shift by +1 hour for CEST (UTC+2 in summer).
+  schedule:
+    - cron: '0 23 * * *'  # 00:00 CET  → previous day 23:00 UTC
+    - cron: '0  4 * * *'  # 05:00 CET  → 04:00 UTC
+    - cron: '0  5 * * *'  # 06:00 CET  → 05:00 UTC
+    - cron: '0 17 * * *'  # 18:00 CET  → 17:00 UTC
+
+  workflow_dispatch:        # also triggerable manually from the Actions tab
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write       # needed to push index.html back to the repo
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Restore data.parquet and model weights from the previous run.
+      # The run_id key ensures a fresh save each time; restore-keys picks
+      # the most recent available cache when no exact match exists.
+      - name: Restore data cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            data.parquet
+            model/weights.joblib
+          key: wind-data-${{ github.run_id }}
+          restore-keys: wind-data-
+
+      - name: Download weather data
+        run: python input/scraper.py   # fetches last 7 days, skips existing files
+
+      - name: Stitch xlsx → parquet
+        run: python input/stitcher.py
+
+      - name: Train model (only when weights are absent)
+        run: |
+          if [ ! -f model/weights.joblib ]; then
+            echo "No weights found — training from scratch."
+            python model/train.py
+          else
+            echo "Weights present — skipping training."
+          fi
+
+      - name: Predict
+        run: python model/predict.py
+
+      - name: Render HTML
+        run: python render_html.py
+
+      - name: Commit and push index.html
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "index.html unchanged — nothing to commit."
+          else
+            git commit -m "forecast: update $(date -u '+%d %b %Y %H:%M UTC')"
+            git push
+          fi

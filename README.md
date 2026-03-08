@@ -70,7 +70,20 @@ Outputs JSON to stdout and writes `predictions.json`:
 ]
 ```
 
-### 5. Explore (optional)
+### 5. Deploy
+
+One command runs the full pipeline and publishes `index.html` to GitHub Pages:
+
+```bash
+python deploy.py              # download last 2 days → stitch → predict → render → push
+python deploy.py --dry-run    # same, but skip git push
+python deploy.py --days 7     # download last 7 days instead
+python deploy.py --no-download --no-stitch  # re-run from existing data
+```
+
+Only `index.html` is ever committed — data artifacts remain local/gitignored.
+
+### 6. Explore (optional)
 
 ```bash
 python explore.py             # all panels → exploration.png
@@ -80,6 +93,44 @@ python explore.py --out my.png
 ```
 
 Produces static PNGs — safe to run headlessly on the Pi.
+
+## Automated deployment
+
+### Local cron — Raspberry Pi or any always-on machine (recommended)
+
+Install one cron job per snapshot time configured in `config.toml`:
+
+```bash
+python scripts/install_cron.py           # install
+python scripts/install_cron.py --list    # preview without making changes
+python scripts/install_cron.py --remove  # uninstall
+```
+
+Each job runs `deploy.py` at the configured snapshot time and appends to `logs/deploy.log`.
+This is the recommended approach — persistent local storage means `data.parquet` and
+`model/weights.joblib` accumulate naturally over time.
+
+### GitHub Actions
+
+`.github/workflows/forecast.yml` schedules the pipeline at each snapshot time using GitHub's
+CI runners. `data.parquet` and `model/weights.joblib` are persisted between runs via the
+Actions cache (10 GB limit, entries expire after 7 days of disuse — fine for daily runs).
+
+**Timezone:** GitHub Actions cron is UTC. The offsets in the workflow file assume CET (UTC+1);
+edit the cron expressions at the top of `forecast.yml` if you're in a different timezone or
+during summer time (CEST = UTC+2).
+
+The workflow is also triggerable manually from the Actions tab (`workflow_dispatch`).
+
+### Other options
+
+| Method | Persistent storage | Cost | Notes |
+|---|---|---|---|
+| Raspberry Pi + cron | ✅ local disk | Free | Recommended — `install_cron.py` handles setup |
+| GitHub Actions | ⚠️ cache (7-day TTL) | Free (2 000 min/month) | `forecast.yml` included |
+| Cloud VM (e.g. Hetzner CX11) | ✅ persistent disk | ~€4/month | Same `install_cron.py` setup |
+| AWS Lambda + EventBridge | ✅ S3 bucket | ~$0 (pay-per-use) | More setup; store parquet in S3 |
+| Render / Railway scheduled job | ❌ ephemeral | Free tier available | Data lost between runs — not ideal |
 
 ## Model methodology
 
@@ -159,6 +210,11 @@ min_samples_leaf = 2
 ```
 windPredictor/
 ├── config.toml              # all tunable parameters
+├── deploy.py                # full pipeline: download → stitch → predict → render → push
+├── render_html.py           # render predictions.json → index.html
+├── explore.py               # optional visualisation (data + model diagnostics)
+├── index.html               # generated forecast page (GitHub Pages source)
+├── requirements.txt
 ├── input/
 │   ├── scraper.py           # download daily xlsx from ecowitt.net
 │   ├── stitcher.py          # merge xlsx files → data.parquet
@@ -168,10 +224,14 @@ windPredictor/
 │   ├── train.py             # build training pairs, train, save weights
 │   ├── predict.py           # load weights, output forecast JSON
 │   └── weights.joblib       # saved model artifact (gitignored)
-├── explore.py               # optional visualisation (data + model diagnostics)
+├── scripts/
+│   └── install_cron.py      # install/remove cron jobs from config snapshots
+├── .github/
+│   └── workflows/
+│       └── forecast.yml     # GitHub Actions scheduled deploy
 ├── data.parquet             # master time series (gitignored)
-├── predictions.json         # latest forecast output
-└── requirements.txt
+├── predictions.json         # latest forecast output (gitignored)
+└── logs/                    # cron output (gitignored)
 ```
 
 ## Data format
