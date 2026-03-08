@@ -43,6 +43,7 @@ jobs:
           path: |
             data.parquet
             model/weights.joblib
+            predictions.db
           key: wind-data-${{ github.run_id }}
           restore-keys: wind-data-
 
@@ -80,9 +81,9 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html
+          git add index.html predictions.db
           if git diff --cached --quiet; then
-            echo "index.html unchanged — nothing to commit."
+            echo "Nothing changed — skipping commit."
           else
             git commit -m "forecast: update $(date -u '+%d %b %Y %H:%M UTC')"
             git push

@@ -421,7 +421,100 @@ def _wind_svg(window_wind: dict, cfg: dict) -> str:
     return "\n".join(p)
 
 
-def build_html(predictions: list[dict], cfg: dict) -> str:
+def _history_html(db_path: str, days: int = 60) -> str:
+    """
+    Render a prediction accuracy history section from predictions.db.
+    Returns an empty string if the DB does not exist or has no evaluated days.
+
+    Each day is shown as a coloured square:
+      ■ green  = predicted good  AND was good  (true positive)
+      ■ red    = predicted poor  AND was poor  (true negative)
+      □ orange = predicted good  BUT was poor  (false positive)
+      □ blue   = predicted poor  BUT was good  (false negative)
+      · grey   = prediction exists but outcome not yet known (future/today)
+    """
+    if not os.path.exists(db_path):
+        return ""
+
+    try:
+        from model.history import load_history, accuracy_summary
+    except ImportError:
+        return ""
+
+    df = load_history(db_path=db_path, days=days)
+    if df.empty:
+        return ""
+
+    # One row per predicting_date: use the last snapshot of each day
+    df = df.sort_values("snapshot_dt").groupby("predicting_date").last().reset_index()
+    df = df.sort_values("predicting_date")
+
+    summary = accuracy_summary(db_path=db_path, days=days)
+
+    # Build the dot grid (max ~60 squares, newest last)
+    dots = ""
+    for _, row in df.iterrows():
+        pred_good = int(row["good"])
+        has_outcome = not (row["actual_good"] != row["actual_good"])  # NaN check
+        date_label = row["predicting_date"]
+        prob_pct = round(float(row["probability"]) * 100)
+
+        if not has_outcome:
+            # No ground truth yet
+            color = "#94a3b8"
+            symbol = "·"
+            title = f"{date_label}: predicted {'good' if pred_good else 'poor'} ({prob_pct}%) — outcome pending"
+            dot_style = f"color:{color};font-size:1.3rem;"
+        else:
+            actual_good = int(row["actual_good"])
+            correct = pred_good == actual_good
+            if pred_good and actual_good:
+                color, title_tag = "#16a34a", "TP"
+            elif not pred_good and not actual_good:
+                color, title_tag = "#16a34a", "TN"
+            elif pred_good and not actual_good:
+                color, title_tag = "#d97706", "FP"
+            else:
+                color, title_tag = "#2563eb", "FN"
+            label = "good" if actual_good else "poor"
+            title = f"{date_label}: predicted {'good' if pred_good else 'poor'} ({prob_pct}%), actual {label} [{title_tag}]"
+            symbol = "■" if correct else "□"
+            dot_style = f"color:{color};font-size:1.1rem;"
+
+        dots += f'<span style="{dot_style}" title="{title}">{symbol}</span>'
+
+    if not dots:
+        return ""
+
+    # Accuracy stats line
+    stats_line = ""
+    if summary:
+        n   = summary["n_evaluated"]
+        acc = round(summary["accuracy"] * 100)
+        parts = [f"<strong>{acc}%</strong> accuracy over {n} evaluated days"]
+        if summary.get("precision") is not None:
+            parts.append(f"precision {round(summary['precision']*100)}%")
+        if summary.get("recall") is not None:
+            parts.append(f"recall {round(summary['recall']*100)}%")
+        stats_line = " · ".join(parts)
+
+    legend = (
+        '<span style="color:#16a34a">■</span> correct &nbsp;'
+        '<span style="color:#d97706">□</span> false alarm &nbsp;'
+        '<span style="color:#2563eb">□</span> missed &nbsp;'
+        '<span style="color:#94a3b8">·</span> pending'
+    )
+
+    return f"""
+    <section class="history-section">
+      <h3 class="history-title">Prediction history <span class="history-days">({days}d)</span></h3>
+      <div class="history-dots">{dots}</div>
+      <div class="history-legend">{legend}</div>
+      {"<div class='history-stats'>" + stats_line + "</div>" if stats_line else ""}
+    </section>"""
+
+
+def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -> str:
     sailing = cfg.get("sailing", {})
     window_start = sailing.get("window_start", "08:00")
     window_end   = sailing.get("window_end",   "16:00")
@@ -526,6 +619,11 @@ def build_html(predictions: list[dict], cfg: dict) -> str:
     </article>"""
 
     generated = datetime.now().strftime("%-d %B %Y, %H:%M")
+
+    # Resolve db_path relative to this file if not provided
+    if db_path is None:
+        db_path = os.path.join(_HERE, "predictions.db")
+    history_section = _history_html(db_path)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -798,6 +896,43 @@ def build_html(predictions: list[dict], cfg: dict) -> str:
     }}
     .dropout-svg .do-track {{ stroke: var(--c-border); }}
 
+    /* ── History section ── */
+    .history-section {{
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.25rem;
+    }}
+    .history-title {{
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.6rem;
+    }}
+    .history-days {{
+      font-weight: 400;
+      color: var(--c-muted);
+      font-size: 0.8rem;
+    }}
+    .history-dots {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.15rem;
+      margin-bottom: 0.5rem;
+      line-height: 1;
+      letter-spacing: 0.05em;
+    }}
+    .history-legend {{
+      font-size: 0.72rem;
+      color: var(--c-muted);
+      margin-bottom: 0.4rem;
+    }}
+    .history-stats {{
+      font-size: 0.78rem;
+      color: var(--c-text);
+    }}
+
     /* ── Footer ── */
     .page-footer {{
       margin-top: 2.5rem;
@@ -813,6 +948,8 @@ def build_html(predictions: list[dict], cfg: dict) -> str:
       <h1>⛵ Wind Predictor</h1>
       <p class="subtitle">Sailing conditions forecast · Generated {generated}</p>
     </header>
+
+    {history_section}
 
     {cards_html}
 

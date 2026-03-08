@@ -67,6 +67,8 @@ def step_stitch() -> None:
 def step_predict(ref_date: date | None) -> None:
     import pandas as pd
     from model.predict import predict_all
+    from model.history import record_predictions, backfill_outcomes
+    from model.features import compute_daily_target
 
     label = str(ref_date or date.today())
     _banner(f"[3/4] Running predictions  (ref date: {label})")
@@ -86,6 +88,16 @@ def step_predict(ref_date: date | None) -> None:
     n_days = len({r["predicting_date"] for r in results if "predicting_date" in r})
     print(f"Saved: {out_path}  ({len(results)} snapshot(s), {n_days} day(s))", flush=True)
 
+    # ── Persist to history DB ─────────────────────────────────────────────────
+    db_path = os.path.join(_ROOT, "predictions.db")
+    n_written = record_predictions(results, db_path)
+    print(f"History: wrote {n_written} row(s) to {db_path}", flush=True)
+
+    # Backfill ground-truth outcomes for any past days now in the parquet
+    daily_quality = compute_daily_target(df, cfg)
+    n_outcomes = backfill_outcomes(daily_quality, db_path)
+    print(f"History: upserted {n_outcomes} outcome(s)", flush=True)
+
 
 def step_render() -> None:
     _banner("[4/4] Rendering index.html")
@@ -96,7 +108,11 @@ def step_render() -> None:
     with open(pred_path) as f:
         predictions = json.load(f)
 
-    html = build_html(predictions, load_config(os.path.join(_ROOT, "config.toml")))
+    html = build_html(
+        predictions,
+        load_config(os.path.join(_ROOT, "config.toml")),
+        db_path=os.path.join(_ROOT, "predictions.db"),
+    )
 
     out_path = os.path.join(_ROOT, "index.html")
     with open(out_path, "w") as f:
@@ -111,8 +127,8 @@ def step_publish(dry_run: bool) -> None:
 
     msg = f"forecast: update {datetime.now().strftime('%-d %b %Y %H:%M')}"
 
-    # Stage only index.html — never commit data artifacts
-    subprocess.run(["git", "add", "index.html"], cwd=_ROOT, check=True)
+    # Stage index.html and the predictions history DB
+    subprocess.run(["git", "add", "index.html", "predictions.db"], cwd=_ROOT, check=True)
 
     # Check whether there is actually something new to commit
     diff = subprocess.run(
