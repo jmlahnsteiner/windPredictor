@@ -70,7 +70,7 @@ def step_stitch() -> None:
 def step_predict(ref_date: date | None) -> None:
     import pandas as pd
     from model.predict import predict_all
-    from model.history import record_predictions, backfill_outcomes
+    from model.history import record_predictions, backfill_outcomes, backfill_predictions_from_history
     from model.features import compute_daily_target
 
     label = str(ref_date or date.today())
@@ -82,6 +82,11 @@ def step_predict(ref_date: date | None) -> None:
         raise FileNotFoundError(f"No parquet data at {parquet} — run step_stitch first.")
 
     df = pd.read_parquet(parquet)
+
+    import joblib
+    model_path = os.path.join(_ROOT, cfg["paths"]["model_file"])
+    bundle = joblib.load(model_path)
+
     results = predict_all(df, ref_date, os.path.join(_ROOT, "config.toml"))
 
     out_path = os.path.join(_ROOT, cfg["paths"]["predictions_file"])
@@ -100,6 +105,11 @@ def step_predict(ref_date: date | None) -> None:
     daily_quality = compute_daily_target(df, cfg)
     n_outcomes = backfill_outcomes(daily_quality, db_path)
     print(f"History: upserted {n_outcomes} outcome(s)", flush=True)
+
+    # Backfill retrospective predictions for outcome dates that have none yet
+    n_backfilled = backfill_predictions_from_history(df, cfg, bundle, db_path)
+    if n_backfilled:
+        print(f"History: backfilled {n_backfilled} historical prediction row(s)", flush=True)
 
 
 def step_render() -> None:

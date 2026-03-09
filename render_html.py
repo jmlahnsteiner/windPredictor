@@ -34,6 +34,37 @@ def dir_label(degrees: float) -> str:
     return dirs[round(degrees / 45) % 8]
 
 
+# ── Condition-scale colour palette ──────────────────────────────────────────
+# (text-colour, background, border) keyed by condition label
+_COND_BADGE: dict[str, tuple[str, str, str]] = {
+    "No wind":        ("#475569", "#f1f5f9", "#cbd5e1"),
+    "Very light":     ("#0369a1", "#e0f2fe", "#bae6fd"),
+    "Marginal":       ("#92400e", "#fffbeb", "#fde68a"),
+    "Fair":           ("#3d6b1a", "#f0fdf4", "#bbf7d0"),
+    "Good":           ("#15803d", "#dcfce7", "#86efac"),
+    "Great":          ("#047857", "#d1fae5", "#6ee7b7"),
+    "Excellent":      ("#0e7490", "#ecfeff", "#a5f3fc"),
+    "Strong / gusty": ("#9a3412", "#fff7ed", "#fed7aa"),
+    "Storm":          ("#dc2626", "#fef2f2", "#fecaca"),
+}
+
+def _badge_style(label: str) -> str:
+    """Inline CSS for a condition-label badge."""
+    txt, bg, bd = _COND_BADGE.get(label, ("#475569", "#f8fafc", "#e2e8f0"))
+    return f"color:{txt};background:{bg};border:1px solid {bd}"
+
+
+def _score_to_hex(score: int) -> str:
+    """Map a 0-100 condition score to a display hex colour."""
+    if score < 15:   return "#94a3b8"   # slate – no wind
+    if score < 30:   return "#7dd3fc"   # sky   – very light
+    if score < 45:   return "#fbbf24"   # amber – marginal
+    if score < 60:   return "#86efac"   # light-green – fair
+    if score < 75:   return "#22c55e"   # green – good
+    if score < 90:   return "#10b981"   # emerald – great
+    return "#06b6d4"                     # cyan  – excellent
+
+
 def _window_stats(window_wind: dict, cfg: dict) -> dict:
     """Compute observed stats from window_wind (local station data)."""
     speeds = window_wind.get("speeds_kn", [])
@@ -424,14 +455,13 @@ def _wind_svg(window_wind: dict, cfg: dict) -> str:
 def _history_html(db_path: str, days: int = 60) -> str:
     """
     Render a prediction accuracy history section from predictions.db.
-    Returns an empty string if the DB does not exist or has no evaluated days.
 
-    Each day is shown as a coloured square:
-      ■ green  = predicted good  AND was good  (true positive)
-      ■ red    = predicted poor  AND was poor  (true negative)
-      □ orange = predicted good  BUT was poor  (false positive)
-      □ blue   = predicted poor  BUT was good  (false negative)
-      · grey   = prediction exists but outcome not yet known (future/today)
+    Each day is a coloured square whose fill colour reflects the ACTUAL observed
+    conditions (via actual_frac → condition score gradient).  A thin border
+    signals prediction accuracy:
+      solid border  = prediction matched outcome (correct)
+      dashed border = prediction was wrong
+      pending dot   = no outcome yet
     """
     if not os.path.exists(db_path):
         return ""
@@ -451,38 +481,42 @@ def _history_html(db_path: str, days: int = 60) -> str:
 
     summary = accuracy_summary(db_path=db_path, days=days)
 
-    # Build the dot grid (max ~60 squares, newest last)
     dots = ""
     for _, row in df.iterrows():
-        pred_good = int(row["good"])
-        ag = row["actual_good"]
-        has_outcome = ag is not None and ag == ag  # False for both None and float NaN
-        date_label = row["predicting_date"]
-        prob_pct = round(float(row["probability"]) * 100)
+        pred_good  = int(row["good"])
+        ag         = row["actual_good"]
+        af         = row["actual_frac"]
+        has_outcome = (ag is not None) and (ag == ag)
+        date_label  = row["predicting_date"]
+        prob_pct    = round(float(row["probability"]) * 100)
 
         if not has_outcome:
-            # No ground truth yet
-            color = "#94a3b8"
-            symbol = "·"
-            title = f"{date_label}: predicted {'good' if pred_good else 'poor'} ({prob_pct}%) — outcome pending"
-            dot_style = f"color:{color};font-size:1.3rem;"
+            title = (
+                f"{date_label}: predicted {'good' if pred_good else 'poor'} "
+                f"({prob_pct}%) — outcome pending"
+            )
+            dots += (
+                f'<span class="hist-dot hist-pending" title="{title}">·</span>'
+            )
         else:
-            actual_good = int(ag)
-            correct = pred_good == actual_good
-            if pred_good and actual_good:
-                color, title_tag = "#16a34a", "TP"
-            elif not pred_good and not actual_good:
-                color, title_tag = "#16a34a", "TN"
-            elif pred_good and not actual_good:
-                color, title_tag = "#d97706", "FP"
-            else:
-                color, title_tag = "#2563eb", "FN"
-            label = "good" if actual_good else "poor"
-            title = f"{date_label}: predicted {'good' if pred_good else 'poor'} ({prob_pct}%), actual {label} [{title_tag}]"
-            symbol = "■" if correct else "□"
-            dot_style = f"color:{color};font-size:1.1rem;"
-
-        dots += f'<span style="{dot_style}" title="{title}">{symbol}</span>'
+            actual_good  = int(ag)
+            actual_score = int(round(float(af) * 100)) if (af == af and af is not None) else 0
+            fill_color   = _score_to_hex(actual_score)
+            correct      = pred_good == actual_good
+            pred_label   = "good" if pred_good else "poor"
+            act_label    = "good" if actual_good else "poor"
+            title = (
+                f"{date_label}: predicted {pred_label} ({prob_pct}%), "
+                f"actual {act_label} (score {actual_score}) "
+                f"[{'✓' if correct else '✗'}]"
+            )
+            border_style = "solid" if correct else "dashed"
+            border_color = "#15803d" if correct else "#dc2626"
+            dots += (
+                f'<span class="hist-dot" '
+                f'style="background:{fill_color};border:2px {border_style} {border_color};" '
+                f'title="{title}"></span>'
+            )
 
     if not dots:
         return ""
@@ -500,10 +534,15 @@ def _history_html(db_path: str, days: int = 60) -> str:
         stats_line = " · ".join(parts)
 
     legend = (
-        '<span style="color:#16a34a">■</span> correct &nbsp;'
-        '<span style="color:#d97706">□</span> false alarm &nbsp;'
-        '<span style="color:#2563eb">□</span> missed &nbsp;'
-        '<span style="color:#94a3b8">·</span> pending'
+        '<span style="display:inline-block;width:12px;height:12px;background:#22c55e;'
+        'border:2px solid #15803d;border-radius:2px;vertical-align:middle"></span>'
+        ' correct &nbsp;'
+        '<span style="display:inline-block;width:12px;height:12px;background:#fbbf24;'
+        'border:2px dashed #dc2626;border-radius:2px;vertical-align:middle"></span>'
+        ' wrong &nbsp;'
+        '<span style="color:#94a3b8;font-size:1.1rem;vertical-align:middle">·</span>'
+        ' pending &nbsp;'
+        '<span style="font-size:0.68rem;color:var(--c-muted)">colour = actual conditions</span>'
     )
 
     return f"""
@@ -561,61 +600,71 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
         dt = datetime.strptime(date_str, "%Y-%m-%d")
         day_label = dt.strftime("%A, %-d %B %Y")
 
-        pct = round(prob * 100)
-        if is_past_day:
-            status_class = "past"
-            status_text  = "Past · Good" if good else "Past · Poor"
-            status_icon  = "⛵" if good else "🌧"
-        else:
-            status_class = "good" if good else "poor"
-            status_text  = "Good day" if good else "Poor day"
-            status_icon  = "⛵" if good else "🌧"
+        pct   = round(prob * 100)
+        c_score  = headline.get("condition_score",  pct)
+        c_label  = headline.get("condition_label",  "Good" if good else "Poor")
+        c_icon   = headline.get("condition_icon",   "⛵" if good else "🌫")
+        c_source = headline.get("condition_source", "forecast")
 
-        # Bar color (muted for past days)
         if is_past_day:
-            bar_color = "var(--c-muted)"
-        elif pct >= int(threshold * 100):
-            bar_color = "var(--c-good)"
-        elif pct >= int(threshold * 100 * 0.6):
-            bar_color = "var(--c-warn)"
+            status_class   = "past"
+            badge_label    = f"Past · {c_label}"
+            badge_style    = _badge_style(c_label)
         else:
-            bar_color = "var(--c-poor)"
+            status_class   = "good" if good else "poor"
+            badge_label    = c_label
+            badge_style    = _badge_style(c_label)
 
-        # Snapshot rows
+        # Condition score gradient bar
+        # The track shows a fixed gradient; a mask covers the unfilled portion.
+        score_color     = _score_to_hex(c_score)
+        bar_label       = "Observed conditions" if c_source == "observed" else "Sailing outlook"
+        # Zone marker at the "good" threshold on the gradient bar (score ≥ 60 = Good)
+        good_zone_left  = 60
+
+        # Snapshot rows (condition label + probability)
         snap_rows = ""
         for s in snaps:
-            snap_dt = datetime.fromisoformat(s["snapshot"])
-            snap_time = snap_dt.strftime("%H:%M")
-            s_pct = round(s["probability"] * 100)
-            s_good = s["good"]
-            s_dot = "●" if s_good else "○"
-            s_class = "snap-good" if s_good else "snap-poor"
+            snap_dt    = datetime.fromisoformat(s["snapshot"])
+            snap_time  = snap_dt.strftime("%H:%M")
+            s_score    = s.get("condition_score",  round(s["probability"] * 100))
+            s_label    = s.get("condition_label",  "Good" if s["good"] else "Poor")
+            s_icon     = s.get("condition_icon",   "⛵" if s["good"] else "🌫")
+            s_src      = s.get("condition_source", "forecast")
+            s_color    = _score_to_hex(s_score)
+            s_pct      = round(s["probability"] * 100)
             snap_rows += f"""
-            <tr class="snap-row {s_class}">
+            <tr class="snap-row">
               <td class="snap-time">Snapshot {snap_time}</td>
-              <td class="snap-dot">{s_dot}</td>
-              <td class="snap-prob">{s_pct}%</td>
+              <td class="snap-dot">{s_icon}</td>
+              <td class="snap-label" style="color:{s_color}">{s_label}</td>
+              <td class="snap-score" style="color:{s_color}">{s_score}</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:{s_pct}%"></div>
+                <div class="snap-bar" style="width:{s_score}%;background:{s_color}"></div>
               </td>
             </tr>"""
 
         card_body = f"""
       <div class="card-body">
-        <div class="prob-section">
-          <span class="prob-label">Sailing probability</span>
-          <div class="prob-bar-track">
-            <div class="prob-bar-fill" style="width:{pct}%; background:{bar_color}"></div>
-            <div class="threshold-mark" style="left:{int(threshold*100)}%"
-                 title="Threshold {int(threshold*100)}%"></div>
+        <div class="cond-section">
+          <span class="cond-bar-label">{bar_label}</span>
+          <div class="cond-bar-wrap">
+            <div class="cond-bar-track">
+              <div class="cond-bar-mask" style="left:{c_score}%"></div>
+              <div class="cond-zone-mark" style="left:{good_zone_left}%"
+                   title="Good threshold (score 60)"></div>
+            </div>
+            <div class="cond-zone-labels">
+              <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
+            </div>
           </div>
-          <span class="prob-value">{pct}%</span>
+          <span class="cond-score-value" style="color:{score_color}">{c_score}</span>
         </div>
 
         <div class="meta-row">
           <span class="meta-chip">⏱ {window_start}–{window_end}</span>
           <span class="meta-chip">💨 {wind_min}–{wind_max} kn</span>
-          <span class="meta-chip">Threshold {int(threshold*100)}%</span>
+          <span class="meta-chip">Model p={pct}%</span>
         </div>
 
         {_wind_svg(headline.get("window_wind", {}), cfg)}
@@ -633,33 +682,39 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
         </details>
       </div>"""
 
+        # Card border colour follows condition score for active days
+        if is_past_day:
+            border_color = "var(--c-border)"
+        else:
+            border_color = _score_to_hex(c_score)
+
         if is_past_day:
             cards_html += f"""
     <details class="past-card-wrap">
       <summary class="past-card-summary">
-        <article class="day-card past" style="margin-bottom:0">
+        <article class="day-card past" style="margin-bottom:0;border-left-color:{border_color}">
           <header class="card-header">
             <div class="card-title">
-              <span class="card-icon">{status_icon}</span>
+              <span class="card-icon">{c_icon}</span>
               <h2>{day_label}</h2>
             </div>
-            <div class="card-badge past">{status_text}</div>
+            <div class="card-badge" style="{badge_style}">{badge_label}</div>
           </header>
         </article>
       </summary>
-      <article class="day-card past past-detail">
+      <article class="day-card past past-detail" style="border-left-color:{border_color}">
         {card_body}
       </article>
     </details>"""
         else:
             cards_html += f"""
-    <article class="day-card {status_class}">
+    <article class="day-card {status_class}" style="border-left-color:{border_color}">
       <header class="card-header">
         <div class="card-title">
-          <span class="card-icon">{status_icon}</span>
+          <span class="card-icon">{c_icon}</span>
           <h2>{day_label}</h2>
         </div>
-        <div class="card-badge {status_class}">{status_text}</div>
+        <div class="card-badge" style="{badge_style}">{badge_label}</div>
       </header>
       {card_body}
     </article>"""
@@ -799,65 +854,69 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       border-radius: 999px;
       white-space: nowrap;
     }}
-    .card-badge.good {{
-      background: var(--c-good-bg);
-      color: var(--c-good);
-      border: 1px solid var(--c-good-bd);
-    }}
-    .card-badge.poor {{
-      background: var(--c-poor-bg);
-      color: var(--c-poor);
-      border: 1px solid var(--c-poor-bd);
-    }}
-    .card-badge.past {{
-      background: var(--c-bg);
-      color: var(--c-muted);
-      border: 1px solid var(--c-border);
-    }}
 
     /* card body */
     .card-body {{ padding: 0 1.25rem 1.25rem; }}
 
-    /* probability bar */
-    .prob-section {{
+    /* ── Condition score bar ── */
+    .cond-section {{
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 0.75rem;
       margin-bottom: 0.85rem;
     }}
-    .prob-label {{
+    .cond-bar-label {{
       font-size: 0.78rem;
       color: var(--c-muted);
       white-space: nowrap;
       min-width: 130px;
+      padding-top: 0.1rem;
     }}
-    .prob-bar-track {{
-      flex: 1;
-      height: 8px;
-      background: var(--c-track);
+    .cond-bar-wrap {{ flex: 1; }}
+    .cond-bar-track {{
+      height: 10px;
       border-radius: 999px;
+      /* Gradient: gray → amber → green → emerald → cyan */
+      background: linear-gradient(to right,
+        #94a3b8  0%,
+        #fbbf24 28%,
+        #22c55e 58%,
+        #10b981 78%,
+        #06b6d4 100%
+      );
       position: relative;
       overflow: visible;
     }}
-    .prob-bar-fill {{
-      height: 100%;
-      border-radius: 999px;
-      transition: width 0.4s ease;
+    /* Mask covers the unfilled (right) portion with the page track colour */
+    .cond-bar-mask {{
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      background: var(--c-track);
+      border-radius: 0 999px 999px 0;
     }}
-    .threshold-mark {{
+    .cond-zone-mark {{
       position: absolute;
       top: -4px;
       width: 2px;
-      height: 16px;
+      height: 18px;
       background: var(--c-muted);
+      opacity: 0.5;
       border-radius: 1px;
       transform: translateX(-50%);
     }}
-    .prob-value {{
-      font-size: 0.875rem;
+    .cond-zone-labels {{
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.2rem;
+      font-size: 0.6rem;
+      color: var(--c-muted);
+    }}
+    .cond-score-value {{
+      font-size: 1rem;
       font-weight: 700;
       min-width: 36px;
       text-align: right;
+      padding-top: 0.05rem;
     }}
 
     /* meta chips */
@@ -934,21 +993,17 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       font-size: 0.8rem;
     }}
     .snap-row {{ border-top: 1px solid var(--c-border); }}
-    .snap-row td {{ padding: 0.35rem 0.4rem; }}
-    .snap-time  {{ color: var(--c-muted); width: 110px; }}
-    .snap-dot   {{ width: 20px; text-align: center; }}
-    .snap-good .snap-dot {{ color: var(--c-good); }}
-    .snap-poor .snap-dot {{ color: var(--c-poor); }}
-    .snap-prob  {{ width: 38px; text-align: right; font-weight: 600; }}
+    .snap-row td {{ padding: 0.3rem 0.4rem; vertical-align: middle; }}
+    .snap-time  {{ color: var(--c-muted); width: 100px; }}
+    .snap-dot   {{ width: 22px; text-align: center; font-size: 1rem; line-height: 1; }}
+    .snap-label {{ font-weight: 600; white-space: nowrap; }}
+    .snap-score {{ width: 32px; text-align: right; font-weight: 700; font-size: 0.85rem; }}
     .snap-bar-cell {{ }}
     .snap-bar {{
       height: 5px;
-      background: var(--c-muted);
       border-radius: 999px;
-      opacity: 0.5;
+      opacity: 0.75;
     }}
-    .snap-good .snap-bar {{ background: var(--c-good); opacity: 0.7; }}
-    .snap-poor .snap-bar {{ background: var(--c-poor); opacity: 0.5; }}
 
     /* ── Wind distribution charts ── */
     .wind-svg .wv-lbl {{
@@ -983,10 +1038,27 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       color: var(--c-muted);
       font-size: 0.8rem;
     }}
+    .hist-dot {{
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      vertical-align: middle;
+      cursor: default;
+    }}
+    .hist-pending {{
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.2rem;
+      line-height: 1;
+      width: auto;
+      height: auto;
+    }}
     .history-dots {{
       display: flex;
       flex-wrap: wrap;
-      gap: 0.15rem;
+      gap: 0.2rem;
       margin-bottom: 0.5rem;
       line-height: 1;
       letter-spacing: 0.05em;

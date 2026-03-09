@@ -11,6 +11,7 @@ Usage:
 """
 
 import json
+import math
 import os
 import sys
 import tomllib
@@ -23,6 +24,89 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from model.features import extract_snapshot_features, _target_date
+
+
+# Ordered from highest to lowest score threshold
+_CONDITION_LEVELS: list[tuple[int, str, str]] = [
+    (90, "Excellent",        "⛵"),
+    (75, "Great",            "⛵"),
+    (60, "Good",             "⛵"),
+    (45, "Fair",             "⛵"),
+    (30, "Marginal",         "〰"),
+    (15, "Very light",       "💨"),
+    ( 0, "No wind",          "🌫"),
+]
+
+
+def _condition_rating(result: dict, cfg: dict) -> tuple[int, str, str]:
+    """
+    Compute a continuous condition score (0–100), human-readable label, and icon.
+
+    When observed window_wind data is present (historical/current day), the score
+    is derived from actual wind speed and directional consistency.
+    For future days without observed data, the model probability is mapped directly
+    to a score.
+
+    Returns (score, label, icon).
+    """
+    sc       = cfg.get("sailing", {})
+    wind_min = sc.get("wind_speed_min", 2.0)
+    wind_max = sc.get("wind_speed_max", 12.0)
+    dir_max  = sc.get("wind_dir_consistency_max", 45.0)
+    optimal  = (wind_min + wind_max) / 2.0
+
+    ww     = result.get("window_wind", {})
+    speeds = ww.get("speeds_kn", [])
+    dirs   = ww.get("directions_deg", [])
+    gusts  = [g for g in ww.get("gusts_kn", []) if g is not None]
+
+    if speeds:
+        mean_spd = sum(speeds) / len(speeds)
+        max_gust = max(gusts) if gusts else max(speeds)
+
+        # Hard overrides for dangerous/very-strong conditions
+        if max_gust > 30 or mean_spd > 25:
+            return 5,  "Storm",          "⚡"
+        if max_gust > 22 or mean_spd > 18:
+            return 20, "Strong / gusty", "⚠"
+
+        # Speed score: bell curve peaking at the optimal mid-range speed
+        half_range = max((wind_max - wind_min) / 2.0, 0.01)
+        if mean_spd < wind_min:
+            speed_score = (mean_spd / max(wind_min, 0.01)) * 45.0
+        elif mean_spd <= optimal:
+            speed_score = 45.0 + ((mean_spd - wind_min) / half_range) * 55.0
+        elif mean_spd <= wind_max:
+            speed_score = 100.0 - ((mean_spd - optimal) / half_range) * 55.0
+        else:
+            speed_score = max(0.0, 45.0 - (mean_spd - wind_max) * 5.0)
+
+        # Direction consistency modifier: 0.6 (variable) → 1.0 (rock-steady)
+        if len(dirs) >= 3:
+            rad = [math.radians(d) for d in dirs]
+            R   = math.hypot(
+                sum(math.sin(r) for r in rad) / len(rad),
+                sum(math.cos(r) for r in rad) / len(rad),
+            )
+            circ_std   = math.degrees(math.sqrt(-2 * math.log(max(R, 1e-9))))
+            dir_factor = max(0.0, 1.0 - circ_std / dir_max)
+        else:
+            dir_factor = 0.5
+
+        score = int(min(100, max(0, round(speed_score * (0.6 + 0.4 * dir_factor)))))
+        source = "observed"
+    else:
+        # No observed data: map model probability directly to a 0-100 score
+        score  = int(round(result.get("probability", 0.0) * 100))
+        source = "forecast"
+
+    label, icon = "No wind", "🌫"
+    for threshold, lbl, icn in _CONDITION_LEVELS:
+        if score >= threshold:
+            label, icon = lbl, icn
+            break
+
+    return score, label, icon
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(_HERE, "..", "config.toml")
@@ -84,6 +168,13 @@ def predict_snapshot(
     window_data = _sailing_window_data(df, tgt, cfg)
     if window_data:
         result["window_wind"] = window_data
+
+    # Continuous condition rating (must come after window_wind is attached)
+    c_score, c_label, c_icon = _condition_rating(result, cfg)
+    result["condition_score"]  = c_score
+    result["condition_label"]  = c_label
+    result["condition_icon"]   = c_icon
+    result["condition_source"] = "observed" if window_data else "forecast"
 
     return result
 
