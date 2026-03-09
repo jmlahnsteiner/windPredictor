@@ -80,6 +80,23 @@
     }
     .day-card.good { border-left: 4px solid var(--c-good); }
     .day-card.poor { border-left: 4px solid var(--c-poor); }
+    .day-card.past { border-left: 4px solid var(--c-border); opacity: 0.72; }
+
+    /* Past-day collapsible wrapper */
+    .past-card-wrap { margin-bottom: 1.25rem; }
+    .past-card-wrap[open] .past-card-summary article { border-radius: var(--radius) var(--radius) 0 0; margin-bottom: 0; }
+    .past-card-summary { list-style: none; cursor: pointer; }
+    .past-card-summary::-webkit-details-marker { display: none; }
+    .past-card-summary article { margin-bottom: 0; }
+    .past-card-summary .card-header::after {
+      content: "▸";
+      font-size: 0.8rem;
+      color: var(--c-muted);
+      margin-left: auto;
+      transition: transform 0.2s;
+    }
+    .past-card-wrap[open] .past-card-summary .card-header::after { transform: rotate(90deg); }
+    .past-detail { border-radius: 0 0 var(--radius) var(--radius); border-top: none; }
 
     /* card header */
     .card-header {
@@ -109,60 +126,69 @@
       border-radius: 999px;
       white-space: nowrap;
     }
-    .card-badge.good {
-      background: var(--c-good-bg);
-      color: var(--c-good);
-      border: 1px solid var(--c-good-bd);
-    }
-    .card-badge.poor {
-      background: var(--c-poor-bg);
-      color: var(--c-poor);
-      border: 1px solid var(--c-poor-bd);
-    }
 
     /* card body */
     .card-body { padding: 0 1.25rem 1.25rem; }
 
-    /* probability bar */
-    .prob-section {
+    /* ── Condition score bar ── */
+    .cond-section {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 0.75rem;
       margin-bottom: 0.85rem;
     }
-    .prob-label {
+    .cond-bar-label {
       font-size: 0.78rem;
       color: var(--c-muted);
       white-space: nowrap;
       min-width: 130px;
+      padding-top: 0.1rem;
     }
-    .prob-bar-track {
-      flex: 1;
-      height: 8px;
-      background: var(--c-track);
+    .cond-bar-wrap { flex: 1; }
+    .cond-bar-track {
+      height: 10px;
       border-radius: 999px;
+      /* Gradient: gray → amber → green → emerald → cyan */
+      background: linear-gradient(to right,
+        #94a3b8  0%,
+        #fbbf24 28%,
+        #22c55e 58%,
+        #10b981 78%,
+        #06b6d4 100%
+      );
       position: relative;
       overflow: visible;
     }
-    .prob-bar-fill {
-      height: 100%;
-      border-radius: 999px;
-      transition: width 0.4s ease;
+    /* Mask covers the unfilled (right) portion with the page track colour */
+    .cond-bar-mask {
+      position: absolute;
+      top: 0; right: 0; bottom: 0;
+      background: var(--c-track);
+      border-radius: 0 999px 999px 0;
     }
-    .threshold-mark {
+    .cond-zone-mark {
       position: absolute;
       top: -4px;
       width: 2px;
-      height: 16px;
+      height: 18px;
       background: var(--c-muted);
+      opacity: 0.5;
       border-radius: 1px;
       transform: translateX(-50%);
     }
-    .prob-value {
-      font-size: 0.875rem;
+    .cond-zone-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.2rem;
+      font-size: 0.6rem;
+      color: var(--c-muted);
+    }
+    .cond-score-value {
+      font-size: 1rem;
       font-weight: 700;
       min-width: 36px;
       text-align: right;
+      padding-top: 0.05rem;
     }
 
     /* meta chips */
@@ -239,21 +265,17 @@
       font-size: 0.8rem;
     }
     .snap-row { border-top: 1px solid var(--c-border); }
-    .snap-row td { padding: 0.35rem 0.4rem; }
-    .snap-time  { color: var(--c-muted); width: 110px; }
-    .snap-dot   { width: 20px; text-align: center; }
-    .snap-good .snap-dot { color: var(--c-good); }
-    .snap-poor .snap-dot { color: var(--c-poor); }
-    .snap-prob  { width: 38px; text-align: right; font-weight: 600; }
+    .snap-row td { padding: 0.3rem 0.4rem; vertical-align: middle; }
+    .snap-time  { color: var(--c-muted); width: 100px; }
+    .snap-dot   { width: 22px; text-align: center; font-size: 1rem; line-height: 1; }
+    .snap-label { font-weight: 600; white-space: nowrap; }
+    .snap-score { width: 32px; text-align: right; font-weight: 700; font-size: 0.85rem; }
     .snap-bar-cell { }
     .snap-bar {
       height: 5px;
-      background: var(--c-muted);
       border-radius: 999px;
-      opacity: 0.5;
+      opacity: 0.75;
     }
-    .snap-good .snap-bar { background: var(--c-good); opacity: 0.7; }
-    .snap-poor .snap-bar { background: var(--c-poor); opacity: 0.5; }
 
     /* ── Wind distribution charts ── */
     .wind-svg .wv-lbl {
@@ -288,10 +310,27 @@
       color: var(--c-muted);
       font-size: 0.8rem;
     }
+    .hist-dot {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      vertical-align: middle;
+      cursor: default;
+    }
+    .hist-pending {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.2rem;
+      line-height: 1;
+      width: auto;
+      height: auto;
+    }
     .history-dots {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.15rem;
+      gap: 0.2rem;
       margin-bottom: 0.5rem;
       line-height: 1;
       letter-spacing: 0.05em;
@@ -319,485 +358,161 @@
   <div class="page-wrap">
     <header class="page-header">
       <h1>⛵ Wind Predictor</h1>
-      <p class="subtitle">Sailing conditions forecast · Generated 8 March 2026, 21:47</p>
+      <p class="subtitle">Sailing conditions forecast · Generated 9 March 2026, 18:31</p>
     </header>
 
     
     <section class="history-section">
       <h3 class="history-title">Prediction history <span class="history-days">(60d)</span></h3>
-      <div class="history-dots"><span style="color:#94a3b8;font-size:1.3rem;" title="2026-03-08: predicted poor (5%) — outcome pending">·</span><span style="color:#94a3b8;font-size:1.3rem;" title="2026-03-09: predicted poor (3%) — outcome pending">·</span></div>
-      <div class="history-legend"><span style="color:#16a34a">■</span> correct &nbsp;<span style="color:#d97706">□</span> false alarm &nbsp;<span style="color:#2563eb">□</span> missed &nbsp;<span style="color:#94a3b8">·</span> pending</div>
-      
+      <div class="history-dots"><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-08: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-09: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-10: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-11: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-12: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-13: predicted poor (4%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-14: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-15: predicted poor (5%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-16: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-17: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-18: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-19: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-20: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-21: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-22: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-24: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-25: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-26: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-27: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-28: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-29: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-30: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-01: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-02: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-04: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-05: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-06: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-07: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-08: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-09: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-10: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-11: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-14: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-15: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-16: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-17: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-18: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-19: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-20: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-21: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-22: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-23: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-24: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-25: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-26: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-27: predicted poor (5%), actual poor (score 6) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-28: predicted poor (22%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-01: predicted poor (23%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-02: predicted poor (7%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-03: predicted poor (4%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-04: predicted poor (4%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-05: predicted poor (5%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-06: predicted poor (6%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#7dd3fc;border:2px solid #15803d;" title="2026-03-07: predicted poor (11%), actual poor (score 16) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-08: predicted poor (5%), actual poor (score 0) [✓]"></span><span class="hist-dot hist-pending" title="2026-03-09: predicted poor (5%) — outcome pending">·</span><span class="hist-dot hist-pending" title="2026-03-10: predicted poor (4%) — outcome pending">·</span></div>
+      <div class="history-legend"><span style="display:inline-block;width:12px;height:12px;background:#22c55e;border:2px solid #15803d;border-radius:2px;vertical-align:middle"></span> correct &nbsp;<span style="display:inline-block;width:12px;height:12px;background:#fbbf24;border:2px dashed #dc2626;border-radius:2px;vertical-align:middle"></span> wrong &nbsp;<span style="color:#94a3b8;font-size:1.1rem;vertical-align:middle">·</span> pending &nbsp;<span style="font-size:0.68rem;color:var(--c-muted)">colour = actual conditions</span></div>
+      <div class='history-stats'><strong>100%</strong> accuracy over 55 evaluated days</div>
     </section>
 
     
-    <article class="day-card poor">
+    <article class="day-card poor" style="border-left-color:#94a3b8">
       <header class="card-header">
         <div class="card-title">
-          <span class="card-icon">🌧</span>
-          <h2>Sunday, 8 March 2026</h2>
+          <span class="card-icon">🌫</span>
+          <h2>Tuesday, 10 March 2026</h2>
         </div>
-        <div class="card-badge poor">Poor day</div>
+        <div class="card-badge" style="color:#475569;background:#f1f5f9;border:1px solid #cbd5e1">No wind</div>
       </header>
-
+      
       <div class="card-body">
-        <div class="prob-section">
-          <span class="prob-label">Sailing probability</span>
-          <div class="prob-bar-track">
-            <div class="prob-bar-fill" style="width:12%; background:var(--c-poor)"></div>
-            <div class="threshold-mark" style="left:30%"
-                 title="Threshold 30%"></div>
+        <div class="cond-section">
+          <span class="cond-bar-label">Sailing outlook</span>
+          <div class="cond-bar-wrap">
+            <div class="cond-bar-track">
+              <div class="cond-bar-mask" style="left:4%"></div>
+              <div class="cond-zone-mark" style="left:60%"
+                   title="Good threshold (score 60)"></div>
+            </div>
+            <div class="cond-zone-labels">
+              <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
+            </div>
           </div>
-          <span class="prob-value">12%</span>
+          <span class="cond-score-value" style="color:#94a3b8">4</span>
         </div>
 
         <div class="meta-row">
           <span class="meta-chip">⏱ 08:00–16:00</span>
           <span class="meta-chip">💨 2.0–12.0 kn</span>
-          <span class="meta-chip">Threshold 30%</span>
+          <span class="meta-chip">Model p=4%</span>
         </div>
 
-        <svg viewBox="0 0 360 155" style="width:100%;height:155px;display:block;margin-bottom:.75rem" class="wind-svg" aria-hidden="true">
-<text x="120.0" y="11" font-size="7" text-anchor="middle" class="wv-lbl">Wind speed (kn)</text>
-<rect x="28" y="40.2" width="184" height="80.7" fill="#16a34a" fill-opacity="0.10"/>
-<line x1="28" y1="137.0" x2="212" y2="137.0" stroke-width="0.5" class="wv-grid"/>
-<text x="25" y="139.5" font-size="6.5" text-anchor="end" class="wv-lbl">0</text>
-<line x1="28" y1="120.9" x2="212" y2="120.9" stroke-width="0.5" class="wv-grid"/>
-<text x="25" y="123.4" font-size="6.5" text-anchor="end" class="wv-lbl">2</text>
-<line x1="28" y1="40.2" x2="212" y2="40.2" stroke-width="0.5" class="wv-grid"/>
-<text x="25" y="42.7" font-size="6.5" text-anchor="end" class="wv-lbl">12</text>
-<polygon points="28.0,116.6 29.9,115.9 31.8,116.1 33.8,116.1 35.7,109.4 37.6,106.0 39.5,106.0 41.4,105.2 43.3,105.2 45.2,104.8 47.2,101.8 49.1,100.5 51.0,99.5 52.9,100.2 54.8,100.2 56.8,100.2 58.7,98.9 60.6,92.8 62.5,87.4 64.4,87.7 66.3,87.0 68.2,85.5 70.2,86.2 72.1,89.2 74.0,88.3 75.9,88.3 77.8,91.0 79.8,91.8 81.7,86.6 83.6,87.7 85.5,86.8 87.4,75.1 89.3,75.5 91.2,78.8 93.2,79.4 95.1,79.4 97.0,91.8 98.9,91.4 100.8,89.9 102.8,85.6 104.7,75.3 106.6,51.1 108.5,41.8 110.4,39.2 112.3,42.4 114.2,41.3 116.2,44.3 118.1,53.8 120.0,67.1 121.9,76.6 123.8,82.2 125.8,82.3 127.7,75.7 129.6,74.9 131.5,76.4 133.4,76.1 135.3,75.6 137.2,84.1 139.2,86.8 141.1,85.7 143.0,86.0 144.9,86.5 146.8,88.9 148.8,93.0 150.7,94.1 152.6,89.6 154.5,80.9 156.4,79.6 158.3,79.9 160.2,79.9 162.2,81.3 164.1,84.1 166.0,86.2 167.9,85.1 169.8,84.5 171.8,83.9 173.7,89.6 175.6,89.4 177.5,90.4 179.4,91.9 181.3,94.6 183.2,84.3 185.2,84.2 187.1,84.4 189.0,85.0 190.9,82.8 192.8,91.5 194.8,91.5 196.7,90.5 198.6,86.9 200.5,88.4 202.4,89.5 204.3,89.1 206.2,92.4 208.2,106.2 210.1,107.7 212.0,110.7 212.0,118.1 210.1,117.9 208.2,117.2 206.2,119.0 204.3,115.8 202.4,111.3 200.5,107.5 198.6,102.2 196.7,105.1 194.8,107.3 192.8,107.6 190.9,110.3 189.0,110.9 187.1,108.9 185.2,106.6 183.2,105.8 181.3,101.4 179.4,101.8 177.5,101.3 175.6,100.4 173.7,99.8 171.8,100.7 169.8,101.8 167.9,103.7 166.0,106.1 164.1,103.5 162.2,104.6 160.2,103.1 158.3,103.1 156.4,104.0 154.5,105.6 152.6,103.4 150.7,102.2 148.8,101.6 146.8,99.3 144.9,98.1 143.0,97.0 141.1,94.1 139.2,91.1 137.2,100.2 135.3,102.9 133.4,104.4 131.5,104.7 129.6,103.9 127.7,100.8 125.8,98.4 123.8,99.2 121.9,99.6 120.0,101.7 118.1,97.2 116.2,93.5 114.2,75.3 112.3,72.2 110.4,83.1 108.5,96.6 106.6,106.1 104.7,99.9 102.8,100.7 100.8,103.1 98.9,104.8 97.0,105.1 95.1,111.0 93.2,114.6 91.2,113.2 89.3,110.4 87.4,109.2 85.5,107.5 83.6,105.0 81.7,104.2 79.8,107.1 77.8,107.2 75.9,107.0 74.0,107.0 72.1,107.0 70.2,102.6 68.2,102.3 66.3,104.1 64.4,102.1 62.5,106.9 60.6,107.9 58.7,106.0 56.8,105.7 54.8,105.7 52.9,105.7 51.0,108.3 49.1,110.9 47.2,115.4 45.2,114.7 43.3,114.6 41.4,118.5 39.5,120.5 37.6,120.5 35.7,121.7 33.8,118.8 31.8,118.5 29.9,118.6 28.0,118.7" fill="#3b82f6" fill-opacity="0.13"/>
-<line x1="28.0" y1="116.6" x2="28.0" y2="118.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="25.0" y1="116.6" x2="31.0" y2="116.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="25.0" y1="118.7" x2="31.0" y2="118.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="29.9" y1="115.9" x2="29.9" y2="118.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="26.9" y1="115.9" x2="32.9" y2="115.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="26.9" y1="118.6" x2="32.9" y2="118.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="31.8" y1="116.1" x2="31.8" y2="118.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="28.8" y1="116.1" x2="34.8" y2="116.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="28.8" y1="118.5" x2="34.8" y2="118.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="33.8" y1="116.1" x2="33.8" y2="118.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="30.8" y1="116.1" x2="36.8" y2="116.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="30.8" y1="118.8" x2="36.8" y2="118.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="35.7" y1="109.4" x2="35.7" y2="121.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="32.7" y1="109.4" x2="38.7" y2="109.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="32.7" y1="121.7" x2="38.7" y2="121.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="37.6" y1="106.0" x2="37.6" y2="120.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="34.6" y1="106.0" x2="40.6" y2="106.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="34.6" y1="120.5" x2="40.6" y2="120.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="39.5" y1="106.0" x2="39.5" y2="120.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="36.5" y1="106.0" x2="42.5" y2="106.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="36.5" y1="120.5" x2="42.5" y2="120.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="41.4" y1="105.2" x2="41.4" y2="118.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="38.4" y1="105.2" x2="44.4" y2="105.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="38.4" y1="118.5" x2="44.4" y2="118.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="43.3" y1="105.2" x2="43.3" y2="114.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="40.3" y1="105.2" x2="46.3" y2="105.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="40.3" y1="114.6" x2="46.3" y2="114.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="45.2" y1="104.8" x2="45.2" y2="114.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="42.2" y1="104.8" x2="48.2" y2="104.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="42.2" y1="114.7" x2="48.2" y2="114.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="47.2" y1="101.8" x2="47.2" y2="115.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="44.2" y1="101.8" x2="50.2" y2="101.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="44.2" y1="115.4" x2="50.2" y2="115.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="49.1" y1="100.5" x2="49.1" y2="110.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="46.1" y1="100.5" x2="52.1" y2="100.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="46.1" y1="110.9" x2="52.1" y2="110.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="51.0" y1="99.5" x2="51.0" y2="108.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="48.0" y1="99.5" x2="54.0" y2="99.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="48.0" y1="108.3" x2="54.0" y2="108.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="52.9" y1="100.2" x2="52.9" y2="105.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="49.9" y1="100.2" x2="55.9" y2="100.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="49.9" y1="105.7" x2="55.9" y2="105.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="54.8" y1="100.2" x2="54.8" y2="105.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="51.8" y1="100.2" x2="57.8" y2="100.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="51.8" y1="105.7" x2="57.8" y2="105.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="56.8" y1="100.2" x2="56.8" y2="105.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="53.8" y1="100.2" x2="59.8" y2="100.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="53.8" y1="105.7" x2="59.8" y2="105.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="58.7" y1="98.9" x2="58.7" y2="106.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="55.7" y1="98.9" x2="61.7" y2="98.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="55.7" y1="106.0" x2="61.7" y2="106.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="60.6" y1="92.8" x2="60.6" y2="107.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="57.6" y1="92.8" x2="63.6" y2="92.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="57.6" y1="107.9" x2="63.6" y2="107.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="62.5" y1="87.4" x2="62.5" y2="106.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="59.5" y1="87.4" x2="65.5" y2="87.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="59.5" y1="106.9" x2="65.5" y2="106.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="64.4" y1="87.7" x2="64.4" y2="102.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="61.4" y1="87.7" x2="67.4" y2="87.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="61.4" y1="102.1" x2="67.4" y2="102.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="66.3" y1="87.0" x2="66.3" y2="104.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="63.3" y1="87.0" x2="69.3" y2="87.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="63.3" y1="104.1" x2="69.3" y2="104.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="68.2" y1="85.5" x2="68.2" y2="102.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="65.2" y1="85.5" x2="71.2" y2="85.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="65.2" y1="102.3" x2="71.2" y2="102.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="70.2" y1="86.2" x2="70.2" y2="102.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="67.2" y1="86.2" x2="73.2" y2="86.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="67.2" y1="102.6" x2="73.2" y2="102.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="72.1" y1="89.2" x2="72.1" y2="107.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="69.1" y1="89.2" x2="75.1" y2="89.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="69.1" y1="107.0" x2="75.1" y2="107.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="74.0" y1="88.3" x2="74.0" y2="107.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="71.0" y1="88.3" x2="77.0" y2="88.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="71.0" y1="107.0" x2="77.0" y2="107.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="75.9" y1="88.3" x2="75.9" y2="107.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="72.9" y1="88.3" x2="78.9" y2="88.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="72.9" y1="107.0" x2="78.9" y2="107.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="77.8" y1="91.0" x2="77.8" y2="107.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="74.8" y1="91.0" x2="80.8" y2="91.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="74.8" y1="107.2" x2="80.8" y2="107.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="79.8" y1="91.8" x2="79.8" y2="107.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="76.8" y1="91.8" x2="82.8" y2="91.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="76.8" y1="107.1" x2="82.8" y2="107.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="81.7" y1="86.6" x2="81.7" y2="104.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="78.7" y1="86.6" x2="84.7" y2="86.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="78.7" y1="104.2" x2="84.7" y2="104.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="83.6" y1="87.7" x2="83.6" y2="105.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="80.6" y1="87.7" x2="86.6" y2="87.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="80.6" y1="105.0" x2="86.6" y2="105.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="85.5" y1="86.8" x2="85.5" y2="107.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="82.5" y1="86.8" x2="88.5" y2="86.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="82.5" y1="107.5" x2="88.5" y2="107.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="87.4" y1="75.1" x2="87.4" y2="109.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="84.4" y1="75.1" x2="90.4" y2="75.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="84.4" y1="109.2" x2="90.4" y2="109.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="89.3" y1="75.5" x2="89.3" y2="110.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="86.3" y1="75.5" x2="92.3" y2="75.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="86.3" y1="110.4" x2="92.3" y2="110.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="91.2" y1="78.8" x2="91.2" y2="113.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="88.2" y1="78.8" x2="94.2" y2="78.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="88.2" y1="113.2" x2="94.2" y2="113.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="93.2" y1="79.4" x2="93.2" y2="114.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="90.2" y1="79.4" x2="96.2" y2="79.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="90.2" y1="114.6" x2="96.2" y2="114.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="95.1" y1="79.4" x2="95.1" y2="111.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="92.1" y1="79.4" x2="98.1" y2="79.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="92.1" y1="111.0" x2="98.1" y2="111.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="97.0" y1="91.8" x2="97.0" y2="105.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="94.0" y1="91.8" x2="100.0" y2="91.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="94.0" y1="105.1" x2="100.0" y2="105.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="98.9" y1="91.4" x2="98.9" y2="104.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="95.9" y1="91.4" x2="101.9" y2="91.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="95.9" y1="104.8" x2="101.9" y2="104.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="100.8" y1="89.9" x2="100.8" y2="103.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="97.8" y1="89.9" x2="103.8" y2="89.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="97.8" y1="103.1" x2="103.8" y2="103.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="102.8" y1="85.6" x2="102.8" y2="100.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="99.8" y1="85.6" x2="105.8" y2="85.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="99.8" y1="100.7" x2="105.8" y2="100.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="104.7" y1="75.3" x2="104.7" y2="99.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="101.7" y1="75.3" x2="107.7" y2="75.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="101.7" y1="99.9" x2="107.7" y2="99.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="106.6" y1="51.1" x2="106.6" y2="106.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="103.6" y1="51.1" x2="109.6" y2="51.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="103.6" y1="106.1" x2="109.6" y2="106.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="108.5" y1="41.8" x2="108.5" y2="96.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="105.5" y1="41.8" x2="111.5" y2="41.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="105.5" y1="96.6" x2="111.5" y2="96.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="110.4" y1="39.2" x2="110.4" y2="83.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="107.4" y1="39.2" x2="113.4" y2="39.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="107.4" y1="83.1" x2="113.4" y2="83.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="112.3" y1="42.4" x2="112.3" y2="72.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="109.3" y1="42.4" x2="115.3" y2="42.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="109.3" y1="72.2" x2="115.3" y2="72.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="114.2" y1="41.3" x2="114.2" y2="75.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="111.2" y1="41.3" x2="117.2" y2="41.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="111.2" y1="75.3" x2="117.2" y2="75.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="116.2" y1="44.3" x2="116.2" y2="93.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="113.2" y1="44.3" x2="119.2" y2="44.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="113.2" y1="93.5" x2="119.2" y2="93.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="118.1" y1="53.8" x2="118.1" y2="97.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="115.1" y1="53.8" x2="121.1" y2="53.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="115.1" y1="97.2" x2="121.1" y2="97.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="120.0" y1="67.1" x2="120.0" y2="101.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="117.0" y1="67.1" x2="123.0" y2="67.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="117.0" y1="101.7" x2="123.0" y2="101.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="121.9" y1="76.6" x2="121.9" y2="99.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="118.9" y1="76.6" x2="124.9" y2="76.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="118.9" y1="99.6" x2="124.9" y2="99.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="123.8" y1="82.2" x2="123.8" y2="99.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="120.8" y1="82.2" x2="126.8" y2="82.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="120.8" y1="99.2" x2="126.8" y2="99.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="125.8" y1="82.3" x2="125.8" y2="98.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="122.8" y1="82.3" x2="128.8" y2="82.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="122.8" y1="98.4" x2="128.8" y2="98.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="127.7" y1="75.7" x2="127.7" y2="100.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="124.7" y1="75.7" x2="130.7" y2="75.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="124.7" y1="100.8" x2="130.7" y2="100.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="129.6" y1="74.9" x2="129.6" y2="103.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="126.6" y1="74.9" x2="132.6" y2="74.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="126.6" y1="103.9" x2="132.6" y2="103.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="131.5" y1="76.4" x2="131.5" y2="104.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="128.5" y1="76.4" x2="134.5" y2="76.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="128.5" y1="104.7" x2="134.5" y2="104.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="133.4" y1="76.1" x2="133.4" y2="104.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="130.4" y1="76.1" x2="136.4" y2="76.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="130.4" y1="104.4" x2="136.4" y2="104.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="135.3" y1="75.6" x2="135.3" y2="102.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="132.3" y1="75.6" x2="138.3" y2="75.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="132.3" y1="102.9" x2="138.3" y2="102.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="137.2" y1="84.1" x2="137.2" y2="100.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="134.2" y1="84.1" x2="140.2" y2="84.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="134.2" y1="100.2" x2="140.2" y2="100.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="139.2" y1="86.8" x2="139.2" y2="91.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="136.2" y1="86.8" x2="142.2" y2="86.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="136.2" y1="91.1" x2="142.2" y2="91.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="141.1" y1="85.7" x2="141.1" y2="94.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="138.1" y1="85.7" x2="144.1" y2="85.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="138.1" y1="94.1" x2="144.1" y2="94.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="143.0" y1="86.0" x2="143.0" y2="97.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="140.0" y1="86.0" x2="146.0" y2="86.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="140.0" y1="97.0" x2="146.0" y2="97.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="144.9" y1="86.5" x2="144.9" y2="98.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="141.9" y1="86.5" x2="147.9" y2="86.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="141.9" y1="98.1" x2="147.9" y2="98.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="146.8" y1="88.9" x2="146.8" y2="99.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="143.8" y1="88.9" x2="149.8" y2="88.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="143.8" y1="99.3" x2="149.8" y2="99.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="148.8" y1="93.0" x2="148.8" y2="101.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="145.8" y1="93.0" x2="151.8" y2="93.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="145.8" y1="101.6" x2="151.8" y2="101.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="150.7" y1="94.1" x2="150.7" y2="102.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="147.7" y1="94.1" x2="153.7" y2="94.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="147.7" y1="102.2" x2="153.7" y2="102.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="152.6" y1="89.6" x2="152.6" y2="103.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="149.6" y1="89.6" x2="155.6" y2="89.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="149.6" y1="103.4" x2="155.6" y2="103.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="154.5" y1="80.9" x2="154.5" y2="105.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="151.5" y1="80.9" x2="157.5" y2="80.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="151.5" y1="105.6" x2="157.5" y2="105.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="156.4" y1="79.6" x2="156.4" y2="104.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="153.4" y1="79.6" x2="159.4" y2="79.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="153.4" y1="104.0" x2="159.4" y2="104.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="158.3" y1="79.9" x2="158.3" y2="103.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="155.3" y1="79.9" x2="161.3" y2="79.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="155.3" y1="103.1" x2="161.3" y2="103.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="160.2" y1="79.9" x2="160.2" y2="103.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="157.2" y1="79.9" x2="163.2" y2="79.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="157.2" y1="103.1" x2="163.2" y2="103.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="162.2" y1="81.3" x2="162.2" y2="104.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="159.2" y1="81.3" x2="165.2" y2="81.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="159.2" y1="104.6" x2="165.2" y2="104.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="164.1" y1="84.1" x2="164.1" y2="103.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="161.1" y1="84.1" x2="167.1" y2="84.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="161.1" y1="103.5" x2="167.1" y2="103.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="166.0" y1="86.2" x2="166.0" y2="106.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="163.0" y1="86.2" x2="169.0" y2="86.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="163.0" y1="106.1" x2="169.0" y2="106.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="167.9" y1="85.1" x2="167.9" y2="103.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="164.9" y1="85.1" x2="170.9" y2="85.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="164.9" y1="103.7" x2="170.9" y2="103.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="169.8" y1="84.5" x2="169.8" y2="101.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="166.8" y1="84.5" x2="172.8" y2="84.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="166.8" y1="101.8" x2="172.8" y2="101.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="171.8" y1="83.9" x2="171.8" y2="100.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="168.8" y1="83.9" x2="174.8" y2="83.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="168.8" y1="100.7" x2="174.8" y2="100.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="173.7" y1="89.6" x2="173.7" y2="99.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="170.7" y1="89.6" x2="176.7" y2="89.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="170.7" y1="99.8" x2="176.7" y2="99.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="175.6" y1="89.4" x2="175.6" y2="100.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="172.6" y1="89.4" x2="178.6" y2="89.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="172.6" y1="100.4" x2="178.6" y2="100.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="177.5" y1="90.4" x2="177.5" y2="101.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="174.5" y1="90.4" x2="180.5" y2="90.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="174.5" y1="101.3" x2="180.5" y2="101.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="179.4" y1="91.9" x2="179.4" y2="101.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="176.4" y1="91.9" x2="182.4" y2="91.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="176.4" y1="101.8" x2="182.4" y2="101.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="181.3" y1="94.6" x2="181.3" y2="101.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="178.3" y1="94.6" x2="184.3" y2="94.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="178.3" y1="101.4" x2="184.3" y2="101.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="183.2" y1="84.3" x2="183.2" y2="105.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="180.2" y1="84.3" x2="186.2" y2="84.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="180.2" y1="105.8" x2="186.2" y2="105.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="185.2" y1="84.2" x2="185.2" y2="106.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="182.2" y1="84.2" x2="188.2" y2="84.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="182.2" y1="106.6" x2="188.2" y2="106.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="187.1" y1="84.4" x2="187.1" y2="108.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="184.1" y1="84.4" x2="190.1" y2="84.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="184.1" y1="108.9" x2="190.1" y2="108.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="189.0" y1="85.0" x2="189.0" y2="110.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="186.0" y1="85.0" x2="192.0" y2="85.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="186.0" y1="110.9" x2="192.0" y2="110.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="190.9" y1="82.8" x2="190.9" y2="110.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="187.9" y1="82.8" x2="193.9" y2="82.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="187.9" y1="110.3" x2="193.9" y2="110.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="192.8" y1="91.5" x2="192.8" y2="107.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="189.8" y1="91.5" x2="195.8" y2="91.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="189.8" y1="107.6" x2="195.8" y2="107.6" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="194.8" y1="91.5" x2="194.8" y2="107.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="191.8" y1="91.5" x2="197.8" y2="91.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="191.8" y1="107.3" x2="197.8" y2="107.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="196.7" y1="90.5" x2="196.7" y2="105.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="193.7" y1="90.5" x2="199.7" y2="90.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="193.7" y1="105.1" x2="199.7" y2="105.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="198.6" y1="86.9" x2="198.6" y2="102.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="195.6" y1="86.9" x2="201.6" y2="86.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="195.6" y1="102.2" x2="201.6" y2="102.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="200.5" y1="88.4" x2="200.5" y2="107.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="197.5" y1="88.4" x2="203.5" y2="88.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="197.5" y1="107.5" x2="203.5" y2="107.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="202.4" y1="89.5" x2="202.4" y2="111.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="199.4" y1="89.5" x2="205.4" y2="89.5" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="199.4" y1="111.3" x2="205.4" y2="111.3" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="204.3" y1="89.1" x2="204.3" y2="115.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="201.3" y1="89.1" x2="207.3" y2="89.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="201.3" y1="115.8" x2="207.3" y2="115.8" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="206.2" y1="92.4" x2="206.2" y2="119.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="203.2" y1="92.4" x2="209.2" y2="92.4" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="203.2" y1="119.0" x2="209.2" y2="119.0" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="208.2" y1="106.2" x2="208.2" y2="117.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="205.2" y1="106.2" x2="211.2" y2="106.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="205.2" y1="117.2" x2="211.2" y2="117.2" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="210.1" y1="107.7" x2="210.1" y2="117.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="207.1" y1="107.7" x2="213.1" y2="107.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="207.1" y1="117.9" x2="213.1" y2="117.9" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="212.0" y1="110.7" x2="212.0" y2="118.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>
-<line x1="209.0" y1="110.7" x2="215.0" y2="110.7" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<line x1="209.0" y1="118.1" x2="215.0" y2="118.1" stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>
-<polyline points="28.0,117.6 29.9,117.2 31.8,117.3 33.8,117.5 35.7,115.5 37.6,113.3 39.5,113.3 41.4,111.8 43.3,109.9 45.2,109.7 47.2,108.6 49.1,105.7 51.0,103.9 52.9,103.0 54.8,103.0 56.8,103.0 58.7,102.5 60.6,100.4 62.5,97.2 64.4,94.9 66.3,95.5 68.2,93.9 70.2,94.4 72.1,98.1 74.0,97.6 75.9,97.6 77.8,99.1 79.8,99.4 81.7,95.4 83.6,96.3 85.5,97.2 87.4,92.1 89.3,93.0 91.2,96.0 93.2,97.0 95.1,95.2 97.0,98.4 98.9,98.1 100.8,96.5 102.8,93.1 104.7,87.6 106.6,78.6 108.5,69.2 110.4,61.2 112.3,57.3 114.2,58.3 116.2,68.9 118.1,75.5 120.0,84.4 121.9,88.1 123.8,90.7 125.8,90.4 127.7,88.3 129.6,89.4 131.5,90.5 133.4,90.2 135.3,89.2 137.2,92.1 139.2,88.9 141.1,89.9 143.0,91.5 144.9,92.3 146.8,94.1 148.8,97.3 150.7,98.1 152.6,96.5 154.5,93.3 156.4,91.8 158.3,91.5 160.2,91.5 162.2,93.0 164.1,93.8 166.0,96.2 167.9,94.4 169.8,93.1 171.8,92.3 173.7,94.7 175.6,94.9 177.5,95.9 179.4,96.8 181.3,98.0 183.2,95.1 185.2,95.4 187.1,96.7 189.0,98.0 190.9,96.5 192.8,99.6 194.8,99.4 196.7,97.8 198.6,94.6 200.5,98.0 202.4,100.4 204.3,102.5 206.2,105.7 208.2,111.7 210.1,112.8 212.0,114.4" fill="none" stroke="#3b82f6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
-<circle cx="28.0" cy="117.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="29.9" cy="116.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="31.8" cy="118.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="33.8" cy="116.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="35.7" cy="117.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="37.6" cy="118.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="39.5" cy="107.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="41.4" cy="107.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="43.3" cy="116.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="45.2" cy="110.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="47.2" cy="108.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="49.1" cy="106.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="51.0" cy="101.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="52.9" cy="101.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="54.8" cy="101.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="56.8" cy="103.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="58.7" cy="106.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="60.6" cy="101.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="62.5" cy="99.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="64.4" cy="91.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="66.3" cy="87.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="68.2" cy="95.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="70.2" cy="104.7" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="72.1" cy="91.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="74.0" cy="93.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="75.9" cy="106.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="77.8" cy="92.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="79.8" cy="104.7" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="81.7" cy="98.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="83.6" cy="95.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="85.5" cy="86.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="87.4" cy="97.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="89.3" cy="108.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="91.2" cy="73.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="93.2" cy="99.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="95.1" cy="101.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="97.0" cy="102.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="98.9" cy="99.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="100.8" cy="89.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="102.8" cy="97.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="104.7" cy="93.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="106.6" cy="85.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="108.5" cy="72.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="110.4" cy="44.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="112.3" cy="50.7" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="114.2" cy="53.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="116.2" cy="66.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="118.1" cy="77.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="120.0" cy="97.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="121.9" cy="83.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="123.8" cy="97.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="125.8" cy="84.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="127.7" cy="90.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="129.6" cy="95.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="131.5" cy="73.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="133.4" cy="103.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="135.3" cy="90.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="137.2" cy="88.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="139.2" cy="91.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="141.1" cy="87.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="143.0" cy="87.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="144.9" cy="95.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="146.8" cy="96.7" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="148.8" cy="95.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="150.7" cy="96.7" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="152.6" cy="103.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="154.5" cy="99.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="156.4" cy="88.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="158.3" cy="78.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="160.2" cy="89.4" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="162.2" cy="101.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="164.1" cy="99.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="166.0" cy="95.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="167.9" cy="83.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="169.8" cy="101.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="171.8" cy="92.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="173.7" cy="92.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="175.6" cy="91.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="177.5" cy="95.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="179.4" cy="102.3" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="181.3" cy="97.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="183.2" cy="97.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="185.2" cy="97.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="187.1" cy="80.5" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="189.0" cy="103.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="190.9" cy="103.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="192.8" cy="103.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="194.8" cy="90.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="196.7" cy="95.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="198.6" cy="103.1" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="200.5" cy="95.9" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="202.4" cy="87.8" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="204.3" cy="107.2" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="206.2" cy="108.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="208.2" cy="113.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="210.1" cy="112.0" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<circle cx="212.0" cy="117.6" r="3" fill="#16a34a" stroke="white" stroke-width="0.8" opacity="0.95"/>
-<text x="210" y="25" font-size="6" text-anchor="end" fill="#3b82f6" font-family="sans-serif" opacity="0.65">80 % CI</text>
-<text x="28.0" y="153" font-size="6.5" text-anchor="start" class="wv-lbl">08:00</text>
-<text x="74.0" y="153" font-size="6.5" text-anchor="middle" class="wv-lbl">10:00</text>
-<text x="120.0" y="153" font-size="6.5" text-anchor="middle" class="wv-lbl">12:00</text>
-<text x="166.0" y="153" font-size="6.5" text-anchor="middle" class="wv-lbl">14:00</text>
-<text x="212.0" y="153" font-size="6.5" text-anchor="end" class="wv-lbl">16:00</text>
-<line x1="217" y1="6" x2="217" y2="149" stroke-width="0.5" class="wv-grid"/>
-<text x="289.0" y="11" font-size="7" text-anchor="middle" class="wv-lbl">Wind direction</text>
-<circle cx="289.0" cy="83.5" r="49.0" fill="none" stroke-width="0.6" class="wv-grid"/>
-<path d="M 289.0,83.5 L 288.1,81.4 A 2.3,2.3 0 0,1 289.9,81.4 Z" fill="#3b82f6" fill-opacity="0.33" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 307.8,38.2 A 49.0,49.0 0 0,1 334.3,64.7 Z" fill="#3b82f6" fill-opacity="0.90" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 291.1,82.6 A 2.3,2.3 0 0,1 291.1,84.4 Z" fill="#3b82f6" fill-opacity="0.33" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 290.6,84.2 A 1.7,1.7 0 0,1 289.7,85.1 Z" fill="#3b82f6" fill-opacity="0.32" stroke="white" stroke-width="0.7"/>
-<path d="M 289.0,83.5 L 289.2,84.0 A 0.6,0.6 0 0,1 288.8,84.0 Z" fill="#3b82f6" fill-opacity="0.31" stroke="white" stroke-width="0.7"/>
-<text x="289.0" y="26.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">N</text>
-<text x="331.4" y="43.6" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">NE</text>
-<text x="349.0" y="86.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">E</text>
-<text x="331.4" y="128.4" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">SE</text>
-<text x="289.0" y="146.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">S</text>
-<text x="246.6" y="128.4" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">SW</text>
-<text x="229.0" y="86.0" font-size="7.5" text-anchor="middle" font-weight="bold" class="wv-lbl">W</text>
-<text x="246.6" y="43.6" font-size="6" text-anchor="middle" font-weight="normal" class="wv-lbl">NW</text>
-<circle cx="289.0" cy="83.5" r="2.5" fill="#64748b" opacity="0.5"/>
-</svg>
+        
 
-        <div class="stats-block"><div class="stats-row stats-observed"><span class="stats-label">Observed</span><span class="stats-chip">avg 5.1 kn</span><span class="stats-chip">max 11.5 kn / gust 15.6 kn</span><span class="stats-chip">100% in range</span><span class="stats-chip">dir ±22.9°</span></div></div>
-
+        
 
         <svg viewBox="0 0 360 38" style="width:100%;height:38px;display:block;margin-bottom:.5rem" class="dropout-svg" aria-hidden="true">
 <text x="49" y="16.5" font-size="6.5" text-anchor="end" class="do-lbl">Forecast</text>
 <line x1="52" y1="18.0" x2="352" y2="18.0" stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>
-<polyline points="58.0,20.9 180.6,21.3 266.3,20.6 309.1,21.9 346.0,21.6" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
-<circle cx="58.0" cy="20.9" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="58.0" y="16.9" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">16%</text>
-<circle cx="180.6" cy="21.3" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="180.6" y="17.3" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">13%</text>
-<circle cx="266.3" cy="20.6" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="266.3" y="16.6" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">17%</text>
-<circle cx="309.1" cy="21.9" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="309.1" y="17.9" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">11%</text>
-<circle cx="346.0" cy="21.6" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="346.0" y="17.6" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">12%</text>
+<polyline points="58.0,23.3 277.0,23.3 346.0,23.2" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+<circle cx="58.0" cy="23.3" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="58.0" y="19.3" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">3%</text>
+<circle cx="277.0" cy="23.3" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="277.0" y="19.3" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">4%</text>
+<circle cx="346.0" cy="23.2" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="346.0" y="19.2" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">4%</text>
+<line x1="58.0" y1="24.0" x2="58.0" y2="27.0" stroke-width="0.75" class="do-track"/>
+<text x="58.0" y="37" font-size="6" text-anchor="start" class="do-lbl">12:00</text>
+<line x1="277.0" y1="24.0" x2="277.0" y2="27.0" stroke-width="0.75" class="do-track"/>
+<text x="277.0" y="37" font-size="6" text-anchor="middle" class="do-lbl">18:00</text>
+<line x1="346.0" y1="24.0" x2="346.0" y2="27.0" stroke-width="0.75" class="do-track"/>
+<text x="346.0" y="37" font-size="6" text-anchor="end" class="do-lbl">20:00</text>
+</svg>
+
+        <details class="snapshots">
+          <summary>All snapshots (3)</summary>
+          <table class="snap-table">
+            <tbody>
+            <tr class="snap-row">
+              <td class="snap-time">Snapshot 12:00</td>
+              <td class="snap-dot">🌫</td>
+              <td class="snap-label" style="color:#94a3b8">No wind</td>
+              <td class="snap-score" style="color:#94a3b8">3</td>
+              <td class="snap-bar-cell">
+                <div class="snap-bar" style="width:3%;background:#94a3b8"></div>
+              </td>
+            </tr>
+            <tr class="snap-row">
+              <td class="snap-time">Snapshot 18:00</td>
+              <td class="snap-dot">🌫</td>
+              <td class="snap-label" style="color:#94a3b8">No wind</td>
+              <td class="snap-score" style="color:#94a3b8">4</td>
+              <td class="snap-bar-cell">
+                <div class="snap-bar" style="width:4%;background:#94a3b8"></div>
+              </td>
+            </tr>
+            <tr class="snap-row">
+              <td class="snap-time">Snapshot 20:00</td>
+              <td class="snap-dot">🌫</td>
+              <td class="snap-label" style="color:#94a3b8">No wind</td>
+              <td class="snap-score" style="color:#94a3b8">4</td>
+              <td class="snap-bar-cell">
+                <div class="snap-bar" style="width:4%;background:#94a3b8"></div>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </details>
+      </div>
+    </article>
+    <details class="past-card-wrap">
+      <summary class="past-card-summary">
+        <article class="day-card past" style="margin-bottom:0;border-left-color:var(--c-border)">
+          <header class="card-header">
+            <div class="card-title">
+              <span class="card-icon">🌫</span>
+              <h2>Monday, 9 March 2026</h2>
+            </div>
+            <div class="card-badge" style="color:#475569;background:#f1f5f9;border:1px solid #cbd5e1">Past · No wind</div>
+          </header>
+        </article>
+      </summary>
+      <article class="day-card past past-detail" style="border-left-color:var(--c-border)">
+        
+      <div class="card-body">
+        <div class="cond-section">
+          <span class="cond-bar-label">Sailing outlook</span>
+          <div class="cond-bar-wrap">
+            <div class="cond-bar-track">
+              <div class="cond-bar-mask" style="left:5%"></div>
+              <div class="cond-zone-mark" style="left:60%"
+                   title="Good threshold (score 60)"></div>
+            </div>
+            <div class="cond-zone-labels">
+              <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
+            </div>
+          </div>
+          <span class="cond-score-value" style="color:#94a3b8">5</span>
+        </div>
+
+        <div class="meta-row">
+          <span class="meta-chip">⏱ 08:00–16:00</span>
+          <span class="meta-chip">💨 2.0–12.0 kn</span>
+          <span class="meta-chip">Model p=5%</span>
+        </div>
+
+        
+
+        
+
+        <svg viewBox="0 0 360 38" style="width:100%;height:38px;display:block;margin-bottom:.5rem" class="dropout-svg" aria-hidden="true">
+<text x="49" y="16.5" font-size="6.5" text-anchor="end" class="do-lbl">Forecast</text>
+<line x1="52" y1="18.0" x2="352" y2="18.0" stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>
+<polyline points="58.0,19.2 180.6,22.3 266.3,23.0 309.1,23.1 346.0,23.0" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+<circle cx="58.0" cy="19.2" r="3" fill="#d97706" stroke="white" stroke-width="0.8"/>
+<text x="58.0" y="15.2" font-size="6" fill="#d97706" text-anchor="middle" font-weight="bold" font-family="sans-serif">24%</text>
+<circle cx="180.6" cy="22.3" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="180.6" y="18.3" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">8%</text>
+<circle cx="266.3" cy="23.0" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="266.3" y="19.0" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">5%</text>
+<circle cx="309.1" cy="23.1" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="309.1" y="19.1" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">5%</text>
+<circle cx="346.0" cy="23.0" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
+<text x="346.0" y="19.0" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">5%</text>
 <line x1="58.0" y1="24.0" x2="58.0" y2="27.0" stroke-width="0.75" class="do-track"/>
 <text x="58.0" y="37" font-size="6" text-anchor="start" class="do-lbl">00:00</text>
 <line x1="180.6" y1="24.0" x2="180.6" y2="27.0" stroke-width="0.75" class="do-track"/>
@@ -814,132 +529,57 @@
           <summary>All snapshots (5)</summary>
           <table class="snap-table">
             <tbody>
-            <tr class="snap-row snap-poor">
+            <tr class="snap-row">
               <td class="snap-time">Snapshot 00:00</td>
-              <td class="snap-dot">○</td>
-              <td class="snap-prob">16%</td>
+              <td class="snap-dot">💨</td>
+              <td class="snap-label" style="color:#7dd3fc">Very light</td>
+              <td class="snap-score" style="color:#7dd3fc">24</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:16%"></div>
+                <div class="snap-bar" style="width:24%;background:#7dd3fc"></div>
               </td>
             </tr>
-            <tr class="snap-row snap-poor">
+            <tr class="snap-row">
               <td class="snap-time">Snapshot 03:00</td>
-              <td class="snap-dot">○</td>
-              <td class="snap-prob">13%</td>
+              <td class="snap-dot">🌫</td>
+              <td class="snap-label" style="color:#94a3b8">No wind</td>
+              <td class="snap-score" style="color:#94a3b8">8</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:13%"></div>
+                <div class="snap-bar" style="width:8%;background:#94a3b8"></div>
               </td>
             </tr>
-            <tr class="snap-row snap-poor">
+            <tr class="snap-row">
               <td class="snap-time">Snapshot 05:00</td>
-              <td class="snap-dot">○</td>
-              <td class="snap-prob">17%</td>
+              <td class="snap-dot">🌫</td>
+              <td class="snap-label" style="color:#94a3b8">No wind</td>
+              <td class="snap-score" style="color:#94a3b8">5</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:17%"></div>
+                <div class="snap-bar" style="width:5%;background:#94a3b8"></div>
               </td>
             </tr>
-            <tr class="snap-row snap-poor">
+            <tr class="snap-row">
               <td class="snap-time">Snapshot 06:00</td>
-              <td class="snap-dot">○</td>
-              <td class="snap-prob">11%</td>
+              <td class="snap-dot">🌫</td>
+              <td class="snap-label" style="color:#94a3b8">No wind</td>
+              <td class="snap-score" style="color:#94a3b8">5</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:11%"></div>
+                <div class="snap-bar" style="width:5%;background:#94a3b8"></div>
               </td>
             </tr>
-            <tr class="snap-row snap-poor">
+            <tr class="snap-row">
               <td class="snap-time">Snapshot 07:00</td>
-              <td class="snap-dot">○</td>
-              <td class="snap-prob">12%</td>
+              <td class="snap-dot">🌫</td>
+              <td class="snap-label" style="color:#94a3b8">No wind</td>
+              <td class="snap-score" style="color:#94a3b8">5</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:12%"></div>
+                <div class="snap-bar" style="width:5%;background:#94a3b8"></div>
               </td>
             </tr>
             </tbody>
           </table>
         </details>
       </div>
-    </article>
-    <article class="day-card poor">
-      <header class="card-header">
-        <div class="card-title">
-          <span class="card-icon">🌧</span>
-          <h2>Monday, 9 March 2026</h2>
-        </div>
-        <div class="card-badge poor">Poor day</div>
-      </header>
-
-      <div class="card-body">
-        <div class="prob-section">
-          <span class="prob-label">Sailing probability</span>
-          <div class="prob-bar-track">
-            <div class="prob-bar-fill" style="width:16%; background:var(--c-poor)"></div>
-            <div class="threshold-mark" style="left:30%"
-                 title="Threshold 30%"></div>
-          </div>
-          <span class="prob-value">16%</span>
-        </div>
-
-        <div class="meta-row">
-          <span class="meta-chip">⏱ 08:00–16:00</span>
-          <span class="meta-chip">💨 2.0–12.0 kn</span>
-          <span class="meta-chip">Threshold 30%</span>
-        </div>
-
-        
-
-        
-
-        <svg viewBox="0 0 360 38" style="width:100%;height:38px;display:block;margin-bottom:.5rem" class="dropout-svg" aria-hidden="true">
-<text x="49" y="16.5" font-size="6.5" text-anchor="end" class="do-lbl">Forecast</text>
-<line x1="52" y1="18.0" x2="352" y2="18.0" stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>
-<polyline points="58.0,19.7 277.0,19.9 346.0,20.9" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
-<circle cx="58.0" cy="19.7" r="3" fill="#d97706" stroke="white" stroke-width="0.8"/>
-<text x="58.0" y="15.7" font-size="6" fill="#d97706" text-anchor="middle" font-weight="bold" font-family="sans-serif">22%</text>
-<circle cx="277.0" cy="19.9" r="3" fill="#d97706" stroke="white" stroke-width="0.8"/>
-<text x="277.0" y="15.9" font-size="6" fill="#d97706" text-anchor="middle" font-weight="bold" font-family="sans-serif">20%</text>
-<circle cx="346.0" cy="20.9" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="346.0" y="16.9" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">16%</text>
-<line x1="58.0" y1="24.0" x2="58.0" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="58.0" y="37" font-size="6" text-anchor="start" class="do-lbl">12:00</text>
-<line x1="277.0" y1="24.0" x2="277.0" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="277.0" y="37" font-size="6" text-anchor="middle" class="do-lbl">18:00</text>
-<line x1="346.0" y1="24.0" x2="346.0" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="346.0" y="37" font-size="6" text-anchor="end" class="do-lbl">20:00</text>
-</svg>
-
-        <details class="snapshots">
-          <summary>All snapshots (3)</summary>
-          <table class="snap-table">
-            <tbody>
-            <tr class="snap-row snap-poor">
-              <td class="snap-time">Snapshot 12:00</td>
-              <td class="snap-dot">○</td>
-              <td class="snap-prob">22%</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:22%"></div>
-              </td>
-            </tr>
-            <tr class="snap-row snap-poor">
-              <td class="snap-time">Snapshot 18:00</td>
-              <td class="snap-dot">○</td>
-              <td class="snap-prob">20%</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:20%"></div>
-              </td>
-            </tr>
-            <tr class="snap-row snap-poor">
-              <td class="snap-time">Snapshot 20:00</td>
-              <td class="snap-dot">○</td>
-              <td class="snap-prob">16%</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:16%"></div>
-              </td>
-            </tr>
-            </tbody>
-          </table>
-        </details>
-      </div>
-    </article>
+      </article>
+    </details>
 
     <footer class="page-footer">
       <p>Sailing window 08:00–16:00 · Wind 2.0–12.0 kn · Good-day threshold 30%</p>
