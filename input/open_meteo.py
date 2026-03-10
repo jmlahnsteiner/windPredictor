@@ -102,19 +102,24 @@ def sailing_window_stats(
     cc  = window["cloud_cover"].dropna()
     blh = window["blh"].dropna()
 
-    # Circular mean wind direction
+    # Circular mean wind direction and consistency (circular std)
     mean_dir: float | None = None
+    dir_consistency_deg: float | None = None
     if not wd.empty:
         rad = [math.radians(d) for d in wd]
         sin_m = sum(math.sin(r) for r in rad) / len(rad)
         cos_m = sum(math.cos(r) for r in rad) / len(rad)
         mean_dir = round(math.degrees(math.atan2(sin_m, cos_m)) % 360)
+        if len(rad) >= 2:
+            R = math.hypot(sin_m, cos_m)
+            dir_consistency_deg = round(math.degrees(math.sqrt(-2 * math.log(max(R, 1e-9)))), 1)
 
     return {
-        "mean_wind_kn":    round(float(ws.mean()), 1) if not ws.empty else None,
-        "max_gust_kn":     round(float(wg.max()),  1) if not wg.empty else None,
-        "cloud_cover_pct": round(float(cc.mean()))    if not cc.empty else None,
-        "blh_m":           round(float(blh.mean()))   if not blh.empty else None,
-        "mean_dir_deg":    mean_dir,
-        "source":          "open-meteo",
+        "mean_wind_kn":       round(float(ws.mean()), 1) if not ws.empty else None,
+        "max_gust_kn":        round(float(wg.max()),  1) if not wg.empty else None,
+        "cloud_cover_pct":    round(float(cc.mean()))    if not cc.empty else None,
+        "blh_m":              round(float(blh.mean()))   if not blh.empty else None,
+        "mean_dir_deg":       mean_dir,
+        "dir_consistency_deg": dir_consistency_deg,
+        "source":             "open-meteo",
     }

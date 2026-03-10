@@ -26,6 +26,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from model.features import extract_snapshot_features, _target_date
 
 
+# Probability decay per calendar-day lead time from today.
+# day 0 (today) and day 1 (tomorrow) use the ML model as-is.
+# Days 2–3 further out are less reliable: confidence is scaled down.
+_FORECAST_DECAY: dict[int, float] = {0: 1.0, 1: 1.0, 2: 0.82, 3: 0.64}
+
 # Ordered from highest to lowest score threshold
 _CONDITION_LEVELS: list[tuple[int, str, str]] = [
     (90, "Excellent",        "⛵"),
@@ -275,6 +280,45 @@ def predict_all(
         )
         result = predict_snapshot(df, snap_dt, bundle, cfg)
         results.append(result)
+
+    # ── Extended 4-day forecast (day+2, day+3 beyond current predictions) ─────
+    # Use the latest ML snapshot as a base and apply a confidence decay to
+    # acknowledge that predictability decreases with lead time.
+    valid = [r for r in results if "predicting_date" in r and "error" not in r]
+    if valid:
+        max_date = max(date.fromisoformat(r["predicting_date"]) for r in valid)
+        # Representative snapshot: latest for the furthest-ahead date
+        latest_snap = max(
+            (r for r in valid if r["predicting_date"] == str(max_date)),
+            key=lambda r: r["snapshot"],
+        )
+        for extra in range(1, 3):          # day+2 and day+3 beyond max_date
+            future_date = max_date + timedelta(days=extra)
+            lead = (future_date - ref_date).days
+            decay = _FORECAST_DECAY.get(min(lead, max(_FORECAST_DECAY)), 0.50)
+            decayed_prob = round(float(latest_snap["probability"]) * decay, 3)
+
+            c_score = int(round(decayed_prob * 100))
+            c_label, c_icon = "No wind", "🌫"
+            for thr, lbl, icn in _CONDITION_LEVELS:
+                if c_score >= thr:
+                    c_label, c_icon = lbl, icn
+                    break
+
+            results.append({
+                "snapshot":          latest_snap["snapshot"],
+                "predicting_date":   str(future_date),
+                "sailing_window":    latest_snap["sailing_window"],
+                "probability":       decayed_prob,
+                "good":              decayed_prob >= cfg["prediction"]["min_good_fraction"],
+                "threshold":         cfg["prediction"]["min_good_fraction"],
+                "is_extended_forecast": True,
+                "lead_days":         lead,
+                "condition_score":   c_score,
+                "condition_label":   c_label,
+                "condition_icon":    c_icon,
+                "condition_source":  "forecast",
+            })
 
     _enrich_with_nwp(results, cfg)
     return results

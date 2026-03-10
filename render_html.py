@@ -96,39 +96,61 @@ def _window_stats(window_wind: dict, cfg: dict) -> dict:
     }
 
 
+def _expected_wind_chips(headline: dict, cfg: dict) -> str:
+    """
+    Return chip HTML for expected average wind, gusts, and direction consistency.
+    Prefers observed window data (past days) over NWP (future days).
+    Returns '' when neither source is available.
+    """
+    obs = _window_stats(headline.get("window_wind", {}), cfg)
+    nwp = headline.get("nwp_forecast", {})
+    chips = []
+
+    if obs:
+        chips.append(f'<span class="meta-chip exp-chip">💨 avg {obs["mean_kn"]} kn</span>')
+        if obs.get("max_gust_kn") is not None:
+            chips.append(f'<span class="meta-chip exp-chip">↑ gust {obs["max_gust_kn"]} kn</span>')
+        if obs.get("dir_std_deg") is not None:
+            chips.append(f'<span class="meta-chip exp-chip">〜 dir ±{obs["dir_std_deg"]}°</span>')
+    elif nwp:
+        if nwp.get("mean_wind_kn") is not None:
+            chips.append(f'<span class="meta-chip exp-chip">💨 avg {nwp["mean_wind_kn"]} kn</span>')
+        if nwp.get("max_gust_kn") is not None:
+            chips.append(f'<span class="meta-chip exp-chip">↑ gust {nwp["max_gust_kn"]} kn</span>')
+        if nwp.get("dir_consistency_deg") is not None:
+            chips.append(f'<span class="meta-chip exp-chip">〜 dir ±{nwp["dir_consistency_deg"]}°</span>')
+
+    return "".join(chips)
+
+
 def _stats_html(headline: dict, cfg: dict) -> str:
     """
-    Render compact observed + NWP stats rows for a day card.
-    Returns '' when neither data source is available.
+    Render secondary stats rows (details not shown in the meta chips).
+    Returns '' when nothing secondary is available.
     """
     rows = []
 
     obs = _window_stats(headline.get("window_wind", {}), cfg)
     if obs:
-        gust = f" / gust {obs['max_gust_kn']} kn" if obs["max_gust_kn"] is not None else ""
-        dir_chip = f'<span class="stats-chip">dir ±{obs["dir_std_deg"]}°</span>' if obs["dir_std_deg"] is not None else ""
         rows.append(
             f'<div class="stats-row stats-observed">'
             f'<span class="stats-label">Observed</span>'
-            f'<span class="stats-chip">avg {obs["mean_kn"]} kn</span>'
-            f'<span class="stats-chip">max {obs["max_kn"]} kn{gust}</span>'
             f'<span class="stats-chip">{obs["pct_good"]}% in range</span>'
-            f'{dir_chip}'
+            f'<span class="stats-chip">max {obs["max_kn"]} kn</span>'
             f'</div>'
         )
 
     nwp = headline.get("nwp_forecast", {})
     if nwp:
-        wind_chip = f'<span class="stats-chip">avg {nwp["mean_wind_kn"]} kn</span>' if nwp.get("mean_wind_kn") is not None else ""
-        gust_chip = f'<span class="stats-chip">gust {nwp["max_gust_kn"]} kn</span>' if nwp.get("max_gust_kn") is not None else ""
         cloud_chip = f'<span class="stats-chip">cloud {nwp["cloud_cover_pct"]}%</span>' if nwp.get("cloud_cover_pct") is not None else ""
-        blh_chip  = f'<span class="stats-chip">BLH {nwp["blh_m"]:,} m</span>' if nwp.get("blh_m") is not None else ""
-        rows.append(
-            f'<div class="stats-row stats-nwp">'
-            f'<span class="stats-label">NWP</span>'
-            f'{wind_chip}{gust_chip}{cloud_chip}{blh_chip}'
-            f'</div>'
-        )
+        blh_chip   = f'<span class="stats-chip">BLH {nwp["blh_m"]:,} m</span>' if nwp.get("blh_m") is not None else ""
+        if cloud_chip or blh_chip:
+            rows.append(
+                f'<div class="stats-row stats-nwp">'
+                f'<span class="stats-label">NWP</span>'
+                f'{cloud_chip}{blh_chip}'
+                f'</div>'
+            )
 
     if not rows:
         return ""
@@ -600,11 +622,13 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
         dt = datetime.strptime(date_str, "%Y-%m-%d")
         day_label = dt.strftime("%A, %-d %B %Y")
 
-        pct   = round(prob * 100)
-        c_score  = headline.get("condition_score",  pct)
-        c_label  = headline.get("condition_label",  "Good" if good else "Poor")
-        c_icon   = headline.get("condition_icon",   "⛵" if good else "🌫")
-        c_source = headline.get("condition_source", "forecast")
+        pct          = round(prob * 100)
+        c_score      = headline.get("condition_score",  pct)
+        c_label      = headline.get("condition_label",  "Good" if good else "Poor")
+        c_icon       = headline.get("condition_icon",   "⛵" if good else "🌫")
+        c_source     = headline.get("condition_source", "forecast")
+        is_extended  = headline.get("is_extended_forecast", False)
+        lead_days    = headline.get("lead_days", None)
 
         if is_past_day:
             status_class   = "past"
@@ -644,6 +668,11 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
               </td>
             </tr>"""
 
+        # Expected wind chips (avg wind, gusts, consistency) from observed or NWP
+        exp_chips = _expected_wind_chips(headline, cfg)
+        # Extended forecast note (e.g. "+3 d" shown next to p value)
+        lead_note = f" +{lead_days}d" if is_extended and lead_days is not None else ""
+
         card_body = f"""
       <div class="card-body">
         <div class="cond-section">
@@ -662,9 +691,8 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
         </div>
 
         <div class="meta-row">
-          <span class="meta-chip">⏱ {window_start}–{window_end}</span>
-          <span class="meta-chip">💨 {wind_min}–{wind_max} kn</span>
-          <span class="meta-chip">Model p={pct}%</span>
+          {exp_chips}
+          <span class="meta-chip">p={pct}%{lead_note}</span>
         </div>
 
         {_wind_svg(headline.get("window_wind", {}), cfg)}
@@ -933,6 +961,12 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       border: 1px solid var(--c-border);
       border-radius: 999px;
       padding: 0.15rem 0.6rem;
+    }}
+    /* Expected-condition chips carry slightly stronger colour to distinguish
+       from secondary info chips like the model probability */
+    .exp-chip {{
+      color: var(--c-text);
+      font-weight: 500;
     }}
 
     /* ── Window stats ── */
