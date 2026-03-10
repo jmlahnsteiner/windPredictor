@@ -206,6 +206,12 @@
       border-radius: 999px;
       padding: 0.15rem 0.6rem;
     }
+    /* Expected-condition chips carry slightly stronger colour to distinguish
+       from secondary info chips like the model probability */
+    .exp-chip {
+      color: var(--c-text);
+      font-weight: 500;
+    }
 
     /* ── Window stats ── */
     .stats-block {
@@ -358,7 +364,7 @@
   <div class="page-wrap">
     <header class="page-header">
       <h1>⛵ Wind Predictor</h1>
-      <p class="subtitle">Sailing conditions forecast · Generated 10 March 2026, 05:47</p>
+      <p class="subtitle">Sailing conditions forecast · Generated 10 March 2026, 07:36</p>
     </header>
 
     
@@ -396,9 +402,8 @@
         </div>
 
         <div class="meta-row">
-          <span class="meta-chip">⏱ 08:00–16:00</span>
-          <span class="meta-chip">💨 2.0–12.0 kn</span>
-          <span class="meta-chip">Model p=43%</span>
+          
+          <span class="meta-chip">p=43%</span>
         </div>
 
         
@@ -511,9 +516,8 @@
         </div>
 
         <div class="meta-row">
-          <span class="meta-chip">⏱ 08:00–16:00</span>
-          <span class="meta-chip">💨 2.0–12.0 kn</span>
-          <span class="meta-chip">Model p=10%</span>
+          
+          <span class="meta-chip">p=10%</span>
         </div>
 
         
@@ -567,6 +571,114 @@
               <td class="snap-score" style="color:#94a3b8">10</td>
               <td class="snap-bar-cell">
                 <div class="snap-bar" style="width:10%;background:#94a3b8"></div>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </details>
+      </div>
+    </article>
+    <article class="day-card poor" style="border-left-color:#94a3b8">
+      <header class="card-header">
+        <div class="card-title">
+          <span class="card-icon">🌫</span>
+          <h2>Thursday, 12 March 2026</h2>
+        </div>
+        <div class="card-badge" style="color:#475569;background:#f1f5f9;border:1px solid #cbd5e1">No wind</div>
+      </header>
+      
+      <div class="card-body">
+        <div class="cond-section">
+          <span class="cond-bar-label">Sailing outlook</span>
+          <div class="cond-bar-wrap">
+            <div class="cond-bar-track">
+              <div class="cond-bar-mask" style="left:8%"></div>
+              <div class="cond-zone-mark" style="left:60%"
+                   title="Good threshold (score 60)"></div>
+            </div>
+            <div class="cond-zone-labels">
+              <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
+            </div>
+          </div>
+          <span class="cond-score-value" style="color:#94a3b8">8</span>
+        </div>
+
+        <div class="meta-row">
+          
+          <span class="meta-chip">p=8% +2d</span>
+        </div>
+
+        
+
+        
+
+        
+
+        <details class="snapshots">
+          <summary>All snapshots (1)</summary>
+          <table class="snap-table">
+            <tbody>
+            <tr class="snap-row">
+              <td class="snap-time">Snapshot 20:00</td>
+              <td class="snap-dot">🌫</td>
+              <td class="snap-label" style="color:#94a3b8">No wind</td>
+              <td class="snap-score" style="color:#94a3b8">8</td>
+              <td class="snap-bar-cell">
+                <div class="snap-bar" style="width:8%;background:#94a3b8"></div>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </details>
+      </div>
+    </article>
+    <article class="day-card poor" style="border-left-color:#94a3b8">
+      <header class="card-header">
+        <div class="card-title">
+          <span class="card-icon">🌫</span>
+          <h2>Friday, 13 March 2026</h2>
+        </div>
+        <div class="card-badge" style="color:#475569;background:#f1f5f9;border:1px solid #cbd5e1">No wind</div>
+      </header>
+      
+      <div class="card-body">
+        <div class="cond-section">
+          <span class="cond-bar-label">Sailing outlook</span>
+          <div class="cond-bar-wrap">
+            <div class="cond-bar-track">
+              <div class="cond-bar-mask" style="left:6%"></div>
+              <div class="cond-zone-mark" style="left:60%"
+                   title="Good threshold (score 60)"></div>
+            </div>
+            <div class="cond-zone-labels">
+              <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
+            </div>
+          </div>
+          <span class="cond-score-value" style="color:#94a3b8">6</span>
+        </div>
+
+        <div class="meta-row">
+          
+          <span class="meta-chip">p=6% +3d</span>
+        </div>
+
+        
+
+        
+
+        
+
+        <details class="snapshots">
+          <summary>All snapshots (1)</summary>
+          <table class="snap-table">
+            <tbody>
+            <tr class="snap-row">
+              <td class="snap-time">Snapshot 20:00</td>
+              <td class="snap-dot">🌫</td>
+              <td class="snap-label" style="color:#94a3b8">No wind</td>
+              <td class="snap-score" style="color:#94a3b8">6</td>
+              <td class="snap-bar-cell">
+                <div class="snap-bar" style="width:6%;background:#94a3b8"></div>
               </td>
             </tr>
             </tbody>
