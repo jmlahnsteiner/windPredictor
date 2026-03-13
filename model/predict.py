@@ -272,6 +272,33 @@ def predict_now(
     results: list[dict] = [result]
     direct_date = date.fromisoformat(result["predicting_date"])
 
+    # When predicting tomorrow (after window_start), also surface today's observed
+    # window data so today appears on the page with real wind readings.
+    if direct_date > today:
+        today_ww = _sailing_window_data(df, today, cfg)
+        if today_ww:
+            sc  = cfg.get("sailing", {})
+            wmin, wmax = sc.get("wind_speed_min", 2.0), sc.get("wind_speed_max", 12.0)
+            speeds = today_ww.get("speeds_kn", [])
+            obs_frac = (sum(1 for s in speeds if wmin <= s <= wmax) / len(speeds)
+                        if speeds else 0.0)
+            today_entry: dict = {
+                "snapshot":          result["snapshot"],
+                "predicting_date":   str(today),
+                "sailing_window":    result["sailing_window"],
+                "probability":       round(obs_frac, 3),
+                "good":              obs_frac >= cfg["prediction"]["min_good_fraction"],
+                "threshold":         cfg["prediction"]["min_good_fraction"],
+                "window_wind":       today_ww,
+                "window_observed_only": True,   # not an ML prediction — exclude from DB
+            }
+            c_score, c_label, c_icon = _condition_rating(today_entry, cfg)
+            today_entry["condition_score"]  = c_score
+            today_entry["condition_label"]  = c_label
+            today_entry["condition_icon"]   = c_icon
+            today_entry["condition_source"] = "observed"
+            results.insert(0, today_entry)
+
     # Extended predictions for remaining days up to today+3
     for lead in range(4):
         future_date = today + timedelta(days=lead)
@@ -375,8 +402,9 @@ if __name__ == "__main__":
         from model.history import record_predictions, backfill_outcomes
         from model.features import compute_daily_target
 
-        # Only record direct ML predictions (not synthetic extended forecasts)
-        direct = [r for r in results if not r.get("is_extended_forecast")]
+        # Only record direct ML predictions (not extended forecasts or observed-only entries)
+        direct = [r for r in results
+                  if not r.get("is_extended_forecast") and not r.get("window_observed_only")]
         n_written = record_predictions(direct, db_path)
         print(f"History: wrote {n_written} row(s) to {db_path}", flush=True)
 

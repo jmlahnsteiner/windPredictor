@@ -103,7 +103,8 @@ def step_predict(ref_date: date | None) -> None:
 
     # ── Persist to history DB ─────────────────────────────────────────────────
     db_path = os.path.join(_ROOT, "predictions.db")
-    direct = [r for r in results if not r.get("is_extended_forecast")]
+    direct = [r for r in results
+              if not r.get("is_extended_forecast") and not r.get("window_observed_only")]
     n_written = record_predictions(direct, db_path)
     print(f"History: wrote {n_written} row(s) to {db_path}", flush=True)
 
