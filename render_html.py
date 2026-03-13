@@ -608,8 +608,9 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
     past_dates   = sorted((d for d in by_date if _is_past(d)), reverse=True)
     sorted_dates = active_dates + past_dates   # active first, newest-past last
 
-    # Build day cards HTML
-    cards_html = ""
+    # Build day cards HTML — active cards shown directly, past cards in one fold-out
+    active_cards_html = ""
+    past_cards_html   = ""
     for date_str in sorted_dates:
         snaps = sorted(by_date[date_str], key=lambda x: x["snapshot"])
         # Best (latest) prediction drives the headline
@@ -717,7 +718,7 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
             border_color = _score_to_hex(c_score)
 
         if is_past_day:
-            cards_html += f"""
+            past_cards_html += f"""
     <details class="past-card-wrap">
       <summary class="past-card-summary">
         <article class="day-card past" style="margin-bottom:0;border-left-color:{border_color}">
@@ -735,7 +736,7 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       </article>
     </details>"""
         else:
-            cards_html += f"""
+            active_cards_html += f"""
     <article class="day-card {status_class}" style="border-left-color:{border_color}">
       <header class="card-header">
         <div class="card-title">
@@ -746,6 +747,22 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       </header>
       {card_body}
     </article>"""
+
+    # Wrap all past-day cards in a single collapsible section
+    n_past = len(past_dates)
+    if past_cards_html:
+        past_label = f"Past {n_past} day{'s' if n_past != 1 else ''}"
+        past_section = f"""
+    <details class="past-week-wrap">
+      <summary class="past-week-summary">{past_label}</summary>
+      <div class="past-week-inner">
+        {past_cards_html}
+      </div>
+    </details>"""
+    else:
+        past_section = ""
+
+    cards_html = active_cards_html + past_section
 
     generated = datetime.now().strftime("%-d %B %Y, %H:%M")
 
@@ -837,6 +854,29 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
     .day-card.good {{ border-left: 4px solid var(--c-good); }}
     .day-card.poor {{ border-left: 4px solid var(--c-poor); }}
     .day-card.past {{ border-left: 4px solid var(--c-border); opacity: 0.72; }}
+
+    /* Past-week outer fold-out */
+    .past-week-wrap {{ margin-bottom: 1.25rem; }}
+    .past-week-summary {{
+      cursor: pointer;
+      list-style: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--c-muted);
+      padding: 0.6rem 0;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }}
+    .past-week-summary::-webkit-details-marker {{ display: none; }}
+    .past-week-summary::before {{
+      content: "▸";
+      font-size: 0.75rem;
+      transition: transform 0.2s;
+    }}
+    .past-week-wrap[open] .past-week-summary::before {{ transform: rotate(90deg); }}
+    .past-week-inner {{ padding-left: 0; }}
 
     /* Past-day collapsible wrapper */
     .past-card-wrap {{ margin-bottom: 1.25rem; }}

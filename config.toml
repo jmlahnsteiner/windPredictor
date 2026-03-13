@@ -16,10 +16,6 @@ consistency_window_hours = 0.5
 min_temperature = 12.0          # °C
 
 [prediction]
-# Times at which a snapshot is taken and a forecast is made.
-# Snapshots before window_start predict the same day's window.
-# Snapshots after window_start predict the next day's window.
-snapshots = ["06:00", "07:00", "12:00",  "18:00", "20:00",  "00:00", "03:00", "05:00"]
 # A day is "good" if at least this fraction of the sailing window has good conditions.
 min_good_fraction = 0.30
 

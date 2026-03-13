@@ -1,13 +1,13 @@
 """
 model/predict.py — Load saved weights and predict sailing probability.
 
-Produces a JSON result for each configured snapshot time. Can be run
-standalone (reads live data from parquet) or imported as a module.
+Each run predicts from the current moment forward through 4 days.
+Extended days (day+2, day+3) use a probability decay to reflect
+decreasing forecast skill at longer lead times.
 
 Usage:
-    python model/predict.py                   # all snapshots for today
-    python model/predict.py 2026-03-07        # all snapshots for a specific date
-    python model/predict.py 2026-03-07 18:00  # single snapshot
+    python model/predict.py                   # predict from now
+    python model/predict.py 2026-03-07 18:00  # predict from a specific time
 """
 
 import json
@@ -27,8 +27,8 @@ from model.features import extract_snapshot_features, _target_date
 
 
 # Probability decay per calendar-day lead time from today.
-# day 0 (today) and day 1 (tomorrow) use the ML model as-is.
-# Days 2–3 further out are less reliable: confidence is scaled down.
+# Days 0 and 1 use the ML model at full confidence.
+# Days 2 and 3 are scaled down to signal increasing uncertainty.
 _FORECAST_DECAY: dict[int, float] = {0: 1.0, 1: 1.0, 2: 0.82, 3: 0.64}
 
 # Ordered from highest to lowest score threshold
@@ -99,11 +99,9 @@ def _condition_rating(result: dict, cfg: dict) -> tuple[int, str, str]:
             dir_factor = 0.5
 
         score = int(min(100, max(0, round(speed_score * (0.6 + 0.4 * dir_factor)))))
-        source = "observed"
     else:
         # No observed data: map model probability directly to a 0-100 score
-        score  = int(round(result.get("probability", 0.0) * 100))
-        source = "forecast"
+        score = int(round(result.get("probability", 0.0) * 100))
 
     label, icon = "No wind", "🌫"
     for threshold, lbl, icn in _CONDITION_LEVELS:
@@ -112,6 +110,7 @@ def _condition_rating(result: dict, cfg: dict) -> tuple[int, str, str]:
             break
 
     return score, label, icon
+
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(_HERE, "..", "config.toml")
@@ -130,7 +129,6 @@ def predict_snapshot(
 ) -> dict:
     """
     Predict sailing probability for the sailing window following snap_dt.
-
     Returns a dict with probability, target date, and metadata.
     """
     feature_names: list[str] = bundle["feature_names"]
@@ -146,14 +144,12 @@ def predict_snapshot(
         }
 
     X = pd.DataFrame([features])[feature_names]
-    # Fill missing values with the medians seen during training
     for col in feature_names:
         if X[col].isna().any():
             X[col] = X[col].fillna(feature_medians.get(col, 0.0))
 
     proba = clf.predict_proba(X)[0]
     if len(proba) == 1:
-        # Model was trained with only one class present in the data.
         prob = float(proba[0]) if int(clf.classes_[0]) == 1 else 0.0
     else:
         prob = float(proba[1])
@@ -168,13 +164,10 @@ def predict_snapshot(
         "threshold": cfg["prediction"]["min_good_fraction"],
     }
 
-    # Wind distribution during the target sailing window (available for
-    # historical dates; silently absent for future predictions).
     window_data = _sailing_window_data(df, tgt, cfg)
     if window_data:
         result["window_wind"] = window_data
 
-    # Continuous condition rating (must come after window_wind is attached)
     c_score, c_label, c_icon = _condition_rating(result, cfg)
     result["condition_score"]  = c_score
     result["condition_label"]  = c_label
@@ -184,15 +177,8 @@ def predict_snapshot(
     return result
 
 
-def _sailing_window_data(
-    df: pd.DataFrame,
-    tgt_date,
-    cfg: dict,
-) -> dict:
-    """
-    Extract wind speed and direction measurements from the sailing window
-    of tgt_date.  Returns {} when the window data is not yet available.
-    """
+def _sailing_window_data(df: pd.DataFrame, tgt_date, cfg: dict) -> dict:
+    """Extract wind measurements from the sailing window of tgt_date."""
     sc = cfg["sailing"]
     try:
         day_df = df.loc[str(tgt_date)]
@@ -204,8 +190,9 @@ def _sailing_window_data(
     if len(needed) < 3:
         return {}
 
-    # Align gusts to the same index as speed/direction; gaps become None.
-    gusts = window["wind_gust"].reindex(needed.index) if "wind_gust" in window.columns else pd.Series(index=needed.index, dtype=float)
+    gusts = (window["wind_gust"].reindex(needed.index)
+             if "wind_gust" in window.columns
+             else pd.Series(index=needed.index, dtype=float))
 
     return {
         "times":          [t.strftime("%H:%M") for t in needed.index],
@@ -222,8 +209,7 @@ def _enrich_with_nwp(results: list[dict], cfg: dict) -> None:
     No-op when [location] is absent from config or the fetch fails.
     """
     loc = cfg.get("location", {})
-    lat = loc.get("lat")
-    lon = loc.get("lon")
+    lat, lon = loc.get("lat"), loc.get("lon")
     if lat is None or lon is None:
         return
 
@@ -248,14 +234,19 @@ def _enrich_with_nwp(results: list[dict], cfg: dict) -> None:
             result["nwp_forecast"] = stats
 
 
-def predict_all(
+def predict_now(
     df: pd.DataFrame,
-    ref_date: Optional[date] = None,
     config_path: str = DEFAULT_CONFIG,
+    snap_dt: Optional[pd.Timestamp] = None,
 ) -> list[dict]:
     """
-    Run all configured snapshot predictions relative to ref_date (default: today).
-    Returns a list of result dicts, one per snapshot.
+    Predict sailing conditions from the current moment (or a given snap_dt).
+
+    Returns a list containing:
+    - One direct ML prediction for today or tomorrow (depending on time of day)
+    - Extended predictions for up to day+3 with probability decay
+
+    Direct predictions are saved to history; extended ones are display-only.
     """
     cfg = load_config(config_path)
     root = os.path.dirname(os.path.abspath(config_path))
@@ -268,60 +259,88 @@ def predict_all(
 
     bundle = joblib.load(model_path)
 
-    if ref_date is None:
-        ref_date = date.today()
+    if snap_dt is None:
+        snap_dt = pd.Timestamp.now().floor("h")
 
-    results = []
-    for snap_str in cfg["prediction"]["snapshots"]:
-        h, m = map(int, snap_str.split(":"))
-        snap_dt = pd.Timestamp(
-            year=ref_date.year, month=ref_date.month, day=ref_date.day,
-            hour=h, minute=m,
-        )
-        result = predict_snapshot(df, snap_dt, bundle, cfg)
-        results.append(result)
+    today = snap_dt.date()
 
-    # ── Extended 4-day forecast (day+2, day+3 beyond current predictions) ─────
-    # Use the latest ML snapshot as a base and apply a confidence decay to
-    # acknowledge that predictability decreases with lead time.
-    valid = [r for r in results if "predicting_date" in r and "error" not in r]
-    if valid:
-        max_date = max(date.fromisoformat(r["predicting_date"]) for r in valid)
-        # Representative snapshot: latest for the furthest-ahead date
-        latest_snap = max(
-            (r for r in valid if r["predicting_date"] == str(max_date)),
-            key=lambda r: r["snapshot"],
-        )
-        for extra in range(1, 3):          # day+2 and day+3 beyond max_date
-            future_date = max_date + timedelta(days=extra)
-            lead = (future_date - ref_date).days
-            decay = _FORECAST_DECAY.get(min(lead, max(_FORECAST_DECAY)), 0.50)
-            decayed_prob = round(float(latest_snap["probability"]) * decay, 3)
+    # Direct ML prediction for this snapshot time
+    result = predict_snapshot(df, snap_dt, bundle, cfg)
+    if "error" in result:
+        return [result]
 
-            c_score = int(round(decayed_prob * 100))
-            c_label, c_icon = "No wind", "🌫"
-            for thr, lbl, icn in _CONDITION_LEVELS:
-                if c_score >= thr:
-                    c_label, c_icon = lbl, icn
-                    break
+    results: list[dict] = [result]
+    direct_date = date.fromisoformat(result["predicting_date"])
 
-            results.append({
-                "snapshot":          latest_snap["snapshot"],
-                "predicting_date":   str(future_date),
-                "sailing_window":    latest_snap["sailing_window"],
-                "probability":       decayed_prob,
-                "good":              decayed_prob >= cfg["prediction"]["min_good_fraction"],
-                "threshold":         cfg["prediction"]["min_good_fraction"],
-                "is_extended_forecast": True,
-                "lead_days":         lead,
-                "condition_score":   c_score,
-                "condition_label":   c_label,
-                "condition_icon":    c_icon,
-                "condition_source":  "forecast",
-            })
+    # Extended predictions for remaining days up to today+3
+    for lead in range(4):
+        future_date = today + timedelta(days=lead)
+        if future_date <= direct_date:
+            continue  # already covered by the direct prediction
+        decay = _FORECAST_DECAY.get(min(lead, 3), 0.50)
+        decayed_prob = round(float(result["probability"]) * decay, 3)
+
+        c_score = int(round(decayed_prob * 100))
+        c_label, c_icon = "No wind", "🌫"
+        for thr, lbl, icn in _CONDITION_LEVELS:
+            if c_score >= thr:
+                c_label, c_icon = lbl, icn
+                break
+
+        results.append({
+            "snapshot":             result["snapshot"],
+            "predicting_date":      str(future_date),
+            "sailing_window":       result["sailing_window"],
+            "probability":          decayed_prob,
+            "good":                 decayed_prob >= cfg["prediction"]["min_good_fraction"],
+            "threshold":            cfg["prediction"]["min_good_fraction"],
+            "is_extended_forecast": True,
+            "lead_days":            lead,
+            "condition_score":      c_score,
+            "condition_label":      c_label,
+            "condition_icon":       c_icon,
+            "condition_source":     "forecast",
+        })
 
     _enrich_with_nwp(results, cfg)
     return results
+
+
+def merge_predictions(
+    new_results: list[dict],
+    pred_path: str,
+    days_to_keep: int = 7,
+) -> list[dict]:
+    """
+    Merge new_results with existing predictions.json.
+
+    Deduplicates by (snapshot, predicting_date), prunes entries older than
+    days_to_keep days, saves, and returns the merged list.
+    """
+    existing: list[dict] = []
+    if os.path.exists(pred_path):
+        try:
+            with open(pred_path) as f:
+                existing = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    cutoff = (date.today() - timedelta(days=days_to_keep)).isoformat()
+    by_key: dict[tuple, dict] = {}
+    for p in existing:
+        if p.get("predicting_date", "") >= cutoff:
+            by_key[(p.get("snapshot", ""), p.get("predicting_date", ""))] = p
+    for p in new_results:
+        if "predicting_date" in p:
+            by_key[(p.get("snapshot", ""), p["predicting_date"])] = p
+
+    merged = sorted(
+        by_key.values(),
+        key=lambda x: (x.get("predicting_date", ""), x.get("snapshot", "")),
+    )
+    with open(pred_path, "w") as f:
+        json.dump(merged, f, indent=2)
+    return merged
 
 
 if __name__ == "__main__":
@@ -330,36 +349,39 @@ if __name__ == "__main__":
     cfg = load_config(config_path)
     root = os.path.dirname(os.path.abspath(config_path))
 
-    # Load data
     df = pd.read_parquet(os.path.join(root, cfg["paths"]["data_parquet"]))
 
-    # Parse args
-    if len(args) == 0:
-        ref_date = date.today()
-        results = predict_all(df, ref_date, config_path)
-
-    elif len(args) == 1:
-        ref_date = datetime.strptime(args[0], "%Y-%m-%d").date()
-        results = predict_all(df, ref_date, config_path)
-
-    elif len(args) == 2:
-        ref_date = datetime.strptime(args[0], "%Y-%m-%d").date()
+    # Optional: override snapshot time via CLI args (date HH:MM)
+    snap_dt: Optional[pd.Timestamp] = None
+    if len(args) == 2:
+        d = datetime.strptime(args[0], "%Y-%m-%d").date()
         h, m = map(int, args[1].split(":"))
-        snap_dt = pd.Timestamp(
-            year=ref_date.year, month=ref_date.month, day=ref_date.day,
-            hour=h, minute=m,
-        )
-        bundle = joblib.load(os.path.join(root, cfg["paths"]["model_file"]))
-        results = [predict_snapshot(df, snap_dt, bundle, cfg)]
-
-    else:
-        print("Usage: python model/predict.py [date [HH:MM]]")
+        snap_dt = pd.Timestamp(year=d.year, month=d.month, day=d.day, hour=h, minute=m)
+    elif len(args) == 1:
+        print("Usage: python model/predict.py [date HH:MM]", file=sys.stderr)
         sys.exit(1)
 
-    output = json.dumps(results, indent=2)
-    print(output)
+    results = predict_now(df, config_path, snap_dt=snap_dt)
 
-    out_path = os.path.join(root, cfg["paths"]["predictions_file"])
-    with open(out_path, "w") as f:
-        f.write(output)
-    print(f"\nSaved: {out_path}", file=sys.stderr)
+    # Merge with existing predictions.json (rolling 7-day window)
+    pred_path = os.path.join(root, cfg["paths"]["predictions_file"])
+    merged = merge_predictions(results, pred_path)
+    n_days = len({r["predicting_date"] for r in merged if "predicting_date" in r})
+    print(f"Saved: {pred_path}  ({len(merged)} entries, {n_days} day(s))", flush=True)
+
+    # ── Persist direct predictions to history DB ───────────────────────────────
+    db_path = os.path.join(root, "predictions.db")
+    try:
+        from model.history import record_predictions, backfill_outcomes
+        from model.features import compute_daily_target
+
+        # Only record direct ML predictions (not synthetic extended forecasts)
+        direct = [r for r in results if not r.get("is_extended_forecast")]
+        n_written = record_predictions(direct, db_path)
+        print(f"History: wrote {n_written} row(s) to {db_path}", flush=True)
+
+        daily_quality = compute_daily_target(df, cfg)
+        n_outcomes = backfill_outcomes(daily_quality, db_path)
+        print(f"History: upserted {n_outcomes} outcome(s)", flush=True)
+    except Exception as exc:
+        print(f"  [!] History recording skipped: {exc}", file=sys.stderr)
