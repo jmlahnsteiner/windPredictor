@@ -153,7 +153,7 @@ def predict_snapshot(
         prob = float(proba[0]) if int(clf.classes_[0]) == 1 else 0.0
     else:
         prob = float(proba[1])
-    tgt = _target_date(snap_dt, cfg["sailing"]["window_start"])
+    tgt = _target_date(snap_dt, cfg["sailing"]["window_end"])
 
     result = {
         "snapshot": snap_dt.isoformat(),
@@ -243,10 +243,12 @@ def predict_now(
     Predict sailing conditions from the current moment (or a given snap_dt).
 
     Returns a list containing:
-    - One direct ML prediction for today or tomorrow (depending on time of day)
+    - One direct ML prediction for today (before window_end) or tomorrow (after window_end)
     - Extended predictions for up to day+3 with probability decay
 
-    Direct predictions are saved to history; extended ones are display-only.
+    During the sailing window the model incorporates live station readings up to snap_dt.
+    After window_end, today's completed window data is surfaced as an observed-only entry.
+    Direct predictions are saved to history; extended/observed ones are display-only.
     """
     cfg = load_config(config_path)
     root = os.path.dirname(os.path.abspath(config_path))
@@ -272,7 +274,7 @@ def predict_now(
     results: list[dict] = [result]
     direct_date = date.fromisoformat(result["predicting_date"])
 
-    # When predicting tomorrow (after window_start), also surface today's observed
+    # When predicting tomorrow (after window_end), also surface today's observed
     # window data so today appears on the page with real wind readings.
     if direct_date > today:
         today_ww = _sailing_window_data(df, today, cfg)
@@ -300,10 +302,11 @@ def predict_now(
             results.insert(0, today_entry)
 
     # Extended predictions for remaining days up to today+3
+    already_covered = {r["predicting_date"] for r in results if "predicting_date" in r}
     for lead in range(4):
         future_date = today + timedelta(days=lead)
-        if future_date <= direct_date:
-            continue  # already covered by the direct prediction
+        if str(future_date) in already_covered:
+            continue  # already covered by direct prediction or observed-only entry
         decay = _FORECAST_DECAY.get(min(lead, 3), 0.50)
         decayed_prob = round(float(result["probability"]) * decay, 3)
 

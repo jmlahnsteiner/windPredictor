@@ -140,10 +140,10 @@ For each calendar day, the **good-sailing fraction** is computed: the proportion
 
 ### Training pairs
 
-The model predicts the *next* sailing window from a weather snapshot taken beforehand:
+The model predicts the sailing window from a weather snapshot:
 
-- **Snapshots before the sailing window opens** (e.g. 00:00, 05:00, 06:00) → predict **the same day's** window
-- **Snapshots after the sailing window has passed** (e.g. 18:00) → predict **the next day's** window
+- **Snapshots before the window closes** (before `window_end`, e.g. 10:00, 13:00) → predict **today's** window, incorporating live station readings up to the snapshot time
+- **Snapshots after the window closes** (≥ `window_end`, e.g. 18:00, 22:00) → predict **the next day's** window
 
 Each (snapshot time, date) pair becomes one training row, giving up to `n_days × n_snapshots` training examples.
 
@@ -189,9 +189,8 @@ wind_dir_consistency_max = 30.0   # max circular range over consistency window (
 consistency_window_hours = 2
 
 [prediction]
-# Snapshots before window_start → predict same day.
-# Snapshots after  window_start → predict next day.
-snapshots         = ["06:00", "18:00", "00:00", "05:00"]
+# Snapshots before window_end → predict same day (incorporating live readings).
+# Snapshots at or after window_end → predict next day.
 min_good_fraction = 0.30
 
 [paths]

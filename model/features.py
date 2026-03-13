@@ -126,14 +126,14 @@ def compute_daily_target(df: pd.DataFrame, cfg: dict) -> pd.Series:
     return pd.Series(results)
 
 
-def _target_date(snap_dt: pd.Timestamp, window_start: str) -> datetime.date:
+def _target_date(snap_dt: pd.Timestamp, window_end: str) -> datetime.date:
     """
     Determine which sailing window date a snapshot is predicting.
-    Before the sailing window opens → same calendar day.
-    After the sailing window opens  → next calendar day.
+    Before the sailing window closes → same calendar day.
+    After the sailing window closes  → next calendar day.
     """
-    ws_hour = int(window_start.split(":")[0])
-    if snap_dt.hour < ws_hour:
+    we_hour = int(window_end.split(":")[0])
+    if snap_dt.hour < we_hour:
         return snap_dt.date()
     return snap_dt.date() + datetime.timedelta(days=1)
 
@@ -306,27 +306,36 @@ def build_training_pairs(
 
     For each (date, snapshot_time), extract features at that snapshot and
     pair them with the sailing quality of the corresponding target date.
-    Snapshots before the sailing window → predict same day.
-    Snapshots after  the sailing window → predict next day.
+    Snapshots before window_end → predict same day (incl. live in-window data).
+    Snapshots at/after window_end → predict next day.
+
+    Snapshot times come from ``cfg["prediction"]["snapshots"]`` if present,
+    otherwise a built-in default set covering pre-window, in-window, and
+    post-window hours is used (matching the GitHub Actions schedule).
 
     Returns (X, y) where y is binary (1 = good day).
     """
+    # Default snapshot hours mirror the GitHub Actions cron schedule (CET):
+    # 05:00, 07:00  pre-window | 10:00, 13:00  in-window | 18:00, 22:00  post-window
+    _DEFAULT_SNAPSHOTS = ["05:00", "07:00", "10:00", "13:00", "18:00", "22:00"]
+
     daily_quality = compute_daily_target(df, cfg)
     if len(daily_quality) < 2:
         return pd.DataFrame(), pd.Series(dtype=int)
 
     min_good = cfg["prediction"]["min_good_fraction"]
-    window_start = cfg["sailing"]["window_start"]
+    window_end = cfg["sailing"]["window_end"]
+    snapshots = cfg["prediction"].get("snapshots", _DEFAULT_SNAPSHOTS)
 
     rows: list[dict] = []
     for snap_date in daily_quality.index:
-        for snap_str in cfg["prediction"]["snapshots"]:
+        for snap_str in snapshots:
             h, m = map(int, snap_str.split(":"))
             snap_dt = pd.Timestamp(
                 year=snap_date.year, month=snap_date.month, day=snap_date.day,
                 hour=h, minute=m,
             )
-            tgt_date = _target_date(snap_dt, window_start)
+            tgt_date = _target_date(snap_dt, window_end)
 
             if tgt_date not in daily_quality.index:
                 continue
