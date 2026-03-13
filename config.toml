@@ -32,6 +32,6 @@ min_samples_leaf = 2
 # [location]
 # Coordinates for NWP forecast enrichment via Open-Meteo (no API key needed).
 # Uncomment the three lines below and fill in your location to enable.
-# name = "Traunsee"
-# lat  = 47.8071    # decimal degrees, positive = North
-# lon  = 13.7790    # decimal degrees, positive = East
+name = "Traunsee"
+lat  = 47.8071    # decimal degrees, positive = North
+lon  = 13.7790    # decimal degrees, positive = East
