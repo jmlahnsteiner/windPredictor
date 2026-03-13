@@ -82,6 +82,29 @@
     .day-card.poor { border-left: 4px solid var(--c-poor); }
     .day-card.past { border-left: 4px solid var(--c-border); opacity: 0.72; }
 
+    /* Past-week outer fold-out */
+    .past-week-wrap { margin-bottom: 1.25rem; }
+    .past-week-summary {
+      cursor: pointer;
+      list-style: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--c-muted);
+      padding: 0.6rem 0;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .past-week-summary::-webkit-details-marker { display: none; }
+    .past-week-summary::before {
+      content: "▸";
+      font-size: 0.75rem;
+      transition: transform 0.2s;
+    }
+    .past-week-wrap[open] .past-week-summary::before { transform: rotate(90deg); }
+    .past-week-inner { padding-left: 0; }
+
     /* Past-day collapsible wrapper */
     .past-card-wrap { margin-bottom: 1.25rem; }
     .past-card-wrap[open] .past-card-summary article { border-radius: var(--radius) var(--radius) 0 0; margin-bottom: 0; }
@@ -364,132 +387,18 @@
   <div class="page-wrap">
     <header class="page-header">
       <h1>⛵ Wind Predictor</h1>
-      <p class="subtitle">Sailing conditions forecast · Generated 13 March 2026, 05:50</p>
+      <p class="subtitle">Sailing conditions forecast · Generated 13 March 2026, 08:43</p>
     </header>
 
     
     <section class="history-section">
       <h3 class="history-title">Prediction history <span class="history-days">(60d)</span></h3>
-      <div class="history-dots"><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-12: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-13: predicted poor (4%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-14: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-15: predicted poor (5%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-16: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-17: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-18: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-19: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-20: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-21: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-22: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-24: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-25: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-26: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-27: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-28: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-29: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-30: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-01: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-02: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-04: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-05: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-06: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-07: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-08: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-09: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-10: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-11: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-14: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-15: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-16: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-17: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-18: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-19: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-20: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-21: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-22: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-23: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-24: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-25: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-26: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-27: predicted poor (5%), actual poor (score 6) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-28: predicted poor (22%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-01: predicted poor (23%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-02: predicted poor (7%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-03: predicted poor (4%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-04: predicted poor (4%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-05: predicted poor (5%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-06: predicted poor (6%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#7dd3fc;border:2px solid #15803d;" title="2026-03-07: predicted poor (11%), actual poor (score 16) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-08: predicted poor (5%), actual poor (score 0) [✓]"></span><span class="hist-dot hist-pending" title="2026-03-09: predicted poor (5%) — outcome pending">·</span><span class="hist-dot hist-pending" title="2026-03-10: predicted poor (4%) — outcome pending">·</span></div>
+      <div class="history-dots"><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-12: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-13: predicted poor (4%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-14: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-15: predicted poor (5%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-16: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-17: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-18: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-19: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-20: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-21: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-22: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-24: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-25: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-26: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-27: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-28: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-29: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-01-30: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-01: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-02: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-04: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-05: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-06: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-07: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-08: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-09: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-10: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-11: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-14: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-15: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-16: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-17: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-18: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-19: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-20: predicted poor (2%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-21: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-22: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-23: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-24: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-25: predicted poor (1%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-26: predicted poor (3%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-27: predicted poor (5%), actual poor (score 6) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-02-28: predicted poor (22%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-01: predicted poor (23%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-02: predicted poor (7%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-03: predicted poor (4%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-04: predicted poor (4%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-05: predicted poor (5%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-06: predicted poor (6%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#7dd3fc;border:2px solid #15803d;" title="2026-03-07: predicted poor (11%), actual poor (score 16) [✓]"></span><span class="hist-dot" style="background:#94a3b8;border:2px solid #15803d;" title="2026-03-08: predicted poor (5%), actual poor (score 0) [✓]"></span><span class="hist-dot" style="background:#fbbf24;border:2px dashed #dc2626;" title="2026-03-09: predicted poor (5%), actual good (score 43) [✗]"></span><span class="hist-dot" style="background:#86efac;border:2px dashed #dc2626;" title="2026-03-10: predicted poor (4%), actual good (score 56) [✗]"></span><span class="hist-dot hist-pending" title="2026-03-14: predicted poor (12%) — outcome pending">·</span></div>
       <div class="history-legend"><span style="display:inline-block;width:12px;height:12px;background:#22c55e;border:2px solid #15803d;border-radius:2px;vertical-align:middle"></span> correct &nbsp;<span style="display:inline-block;width:12px;height:12px;background:#fbbf24;border:2px dashed #dc2626;border-radius:2px;vertical-align:middle"></span> wrong &nbsp;<span style="color:#94a3b8;font-size:1.1rem;vertical-align:middle">·</span> pending &nbsp;<span style="font-size:0.68rem;color:var(--c-muted)">colour = actual conditions</span></div>
-      <div class='history-stats'><strong>100%</strong> accuracy over 51 evaluated days</div>
+      <div class='history-stats'><strong>96%</strong> accuracy over 53 evaluated days · recall 0%</div>
     </section>
 
     
-    <article class="day-card poor" style="border-left-color:#94a3b8">
-      <header class="card-header">
-        <div class="card-title">
-          <span class="card-icon">🌫</span>
-          <h2>Friday, 13 March 2026</h2>
-        </div>
-        <div class="card-badge" style="color:#475569;background:#f1f5f9;border:1px solid #cbd5e1">No wind</div>
-      </header>
-      
-      <div class="card-body">
-        <div class="cond-section">
-          <span class="cond-bar-label">Sailing outlook</span>
-          <div class="cond-bar-wrap">
-            <div class="cond-bar-track">
-              <div class="cond-bar-mask" style="left:11%"></div>
-              <div class="cond-zone-mark" style="left:60%"
-                   title="Good threshold (score 60)"></div>
-            </div>
-            <div class="cond-zone-labels">
-              <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
-            </div>
-          </div>
-          <span class="cond-score-value" style="color:#94a3b8">11</span>
-        </div>
-
-        <div class="meta-row">
-          
-          <span class="meta-chip">p=11%</span>
-        </div>
-
-        
-
-        
-
-        <svg viewBox="0 0 360 38" style="width:100%;height:38px;display:block;margin-bottom:.5rem" class="dropout-svg" aria-hidden="true">
-<text x="49" y="16.5" font-size="6.5" text-anchor="end" class="do-lbl">Forecast</text>
-<line x1="52" y1="18.0" x2="352" y2="18.0" stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>
-<polyline points="58.0,21.6 180.6,22.0 266.3,21.9 309.1,22.0 346.0,21.9" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
-<circle cx="58.0" cy="21.6" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="58.0" y="17.6" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">12%</text>
-<circle cx="180.6" cy="22.0" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="180.6" y="18.0" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">10%</text>
-<circle cx="266.3" cy="21.9" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="266.3" y="17.9" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">10%</text>
-<circle cx="309.1" cy="22.0" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="309.1" y="18.0" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">10%</text>
-<circle cx="346.0" cy="21.9" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="346.0" y="17.9" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">11%</text>
-<line x1="58.0" y1="24.0" x2="58.0" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="58.0" y="37" font-size="6" text-anchor="start" class="do-lbl">00:00</text>
-<line x1="180.6" y1="24.0" x2="180.6" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="180.6" y="37" font-size="6" text-anchor="middle" class="do-lbl">03:00</text>
-<line x1="266.3" y1="24.0" x2="266.3" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="266.3" y="37" font-size="6" text-anchor="middle" class="do-lbl">05:00</text>
-<line x1="309.1" y1="24.0" x2="309.1" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="309.1" y="37" font-size="6" text-anchor="middle" class="do-lbl">06:00</text>
-<line x1="346.0" y1="24.0" x2="346.0" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="346.0" y="37" font-size="6" text-anchor="end" class="do-lbl">07:00</text>
-</svg>
-
-        <details class="snapshots">
-          <summary>All snapshots (5)</summary>
-          <table class="snap-table">
-            <tbody>
-            <tr class="snap-row">
-              <td class="snap-time">Snapshot 00:00</td>
-              <td class="snap-dot">🌫</td>
-              <td class="snap-label" style="color:#94a3b8">No wind</td>
-              <td class="snap-score" style="color:#94a3b8">12</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:12%;background:#94a3b8"></div>
-              </td>
-            </tr>
-            <tr class="snap-row">
-              <td class="snap-time">Snapshot 03:00</td>
-              <td class="snap-dot">🌫</td>
-              <td class="snap-label" style="color:#94a3b8">No wind</td>
-              <td class="snap-score" style="color:#94a3b8">10</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:10%;background:#94a3b8"></div>
-              </td>
-            </tr>
-            <tr class="snap-row">
-              <td class="snap-time">Snapshot 05:00</td>
-              <td class="snap-dot">🌫</td>
-              <td class="snap-label" style="color:#94a3b8">No wind</td>
-              <td class="snap-score" style="color:#94a3b8">10</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:10%;background:#94a3b8"></div>
-              </td>
-            </tr>
-            <tr class="snap-row">
-              <td class="snap-time">Snapshot 06:00</td>
-              <td class="snap-dot">🌫</td>
-              <td class="snap-label" style="color:#94a3b8">No wind</td>
-              <td class="snap-score" style="color:#94a3b8">10</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:10%;background:#94a3b8"></div>
-              </td>
-            </tr>
-            <tr class="snap-row">
-              <td class="snap-time">Snapshot 07:00</td>
-              <td class="snap-dot">🌫</td>
-              <td class="snap-label" style="color:#94a3b8">No wind</td>
-              <td class="snap-score" style="color:#94a3b8">11</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:11%;background:#94a3b8"></div>
-              </td>
-            </tr>
-            </tbody>
-          </table>
-        </details>
-      </div>
-    </article>
     <article class="day-card poor" style="border-left-color:#94a3b8">
       <header class="card-header">
         <div class="card-title">
@@ -504,7 +413,7 @@
           <span class="cond-bar-label">Sailing outlook</span>
           <div class="cond-bar-wrap">
             <div class="cond-bar-track">
-              <div class="cond-bar-mask" style="left:2%"></div>
+              <div class="cond-bar-mask" style="left:12%"></div>
               <div class="cond-zone-mark" style="left:60%"
                    title="Good threshold (score 60)"></div>
             </div>
@@ -512,65 +421,31 @@
               <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
             </div>
           </div>
-          <span class="cond-score-value" style="color:#94a3b8">2</span>
+          <span class="cond-score-value" style="color:#94a3b8">12</span>
         </div>
 
         <div class="meta-row">
           
-          <span class="meta-chip">p=2%</span>
+          <span class="meta-chip">p=12%</span>
         </div>
 
         
 
         
 
-        <svg viewBox="0 0 360 38" style="width:100%;height:38px;display:block;margin-bottom:.5rem" class="dropout-svg" aria-hidden="true">
-<text x="49" y="16.5" font-size="6.5" text-anchor="end" class="do-lbl">Forecast</text>
-<line x1="52" y1="18.0" x2="352" y2="18.0" stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>
-<polyline points="58.0,23.1 277.0,23.4 346.0,23.6" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
-<circle cx="58.0" cy="23.1" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="58.0" y="19.1" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">5%</text>
-<circle cx="277.0" cy="23.4" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="277.0" y="19.4" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">3%</text>
-<circle cx="346.0" cy="23.6" r="3" fill="#dc2626" stroke="white" stroke-width="0.8"/>
-<text x="346.0" y="19.6" font-size="6" fill="#dc2626" text-anchor="middle" font-weight="bold" font-family="sans-serif">2%</text>
-<line x1="58.0" y1="24.0" x2="58.0" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="58.0" y="37" font-size="6" text-anchor="start" class="do-lbl">12:00</text>
-<line x1="277.0" y1="24.0" x2="277.0" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="277.0" y="37" font-size="6" text-anchor="middle" class="do-lbl">18:00</text>
-<line x1="346.0" y1="24.0" x2="346.0" y2="27.0" stroke-width="0.75" class="do-track"/>
-<text x="346.0" y="37" font-size="6" text-anchor="end" class="do-lbl">20:00</text>
-</svg>
+        
 
         <details class="snapshots">
-          <summary>All snapshots (3)</summary>
+          <summary>All snapshots (1)</summary>
           <table class="snap-table">
             <tbody>
             <tr class="snap-row">
-              <td class="snap-time">Snapshot 12:00</td>
+              <td class="snap-time">Snapshot 08:00</td>
               <td class="snap-dot">🌫</td>
               <td class="snap-label" style="color:#94a3b8">No wind</td>
-              <td class="snap-score" style="color:#94a3b8">5</td>
+              <td class="snap-score" style="color:#94a3b8">12</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:5%;background:#94a3b8"></div>
-              </td>
-            </tr>
-            <tr class="snap-row">
-              <td class="snap-time">Snapshot 18:00</td>
-              <td class="snap-dot">🌫</td>
-              <td class="snap-label" style="color:#94a3b8">No wind</td>
-              <td class="snap-score" style="color:#94a3b8">3</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:3%;background:#94a3b8"></div>
-              </td>
-            </tr>
-            <tr class="snap-row">
-              <td class="snap-time">Snapshot 20:00</td>
-              <td class="snap-dot">🌫</td>
-              <td class="snap-label" style="color:#94a3b8">No wind</td>
-              <td class="snap-score" style="color:#94a3b8">2</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:2%;background:#94a3b8"></div>
+                <div class="snap-bar" style="width:12%;background:#94a3b8"></div>
               </td>
             </tr>
             </tbody>
@@ -592,7 +467,7 @@
           <span class="cond-bar-label">Sailing outlook</span>
           <div class="cond-bar-wrap">
             <div class="cond-bar-track">
-              <div class="cond-bar-mask" style="left:2%"></div>
+              <div class="cond-bar-mask" style="left:10%"></div>
               <div class="cond-zone-mark" style="left:60%"
                    title="Good threshold (score 60)"></div>
             </div>
@@ -600,12 +475,12 @@
               <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
             </div>
           </div>
-          <span class="cond-score-value" style="color:#94a3b8">2</span>
+          <span class="cond-score-value" style="color:#94a3b8">10</span>
         </div>
 
         <div class="meta-row">
           
-          <span class="meta-chip">p=2% +2d</span>
+          <span class="meta-chip">p=10% +2d</span>
         </div>
 
         
@@ -619,12 +494,12 @@
           <table class="snap-table">
             <tbody>
             <tr class="snap-row">
-              <td class="snap-time">Snapshot 20:00</td>
+              <td class="snap-time">Snapshot 08:00</td>
               <td class="snap-dot">🌫</td>
               <td class="snap-label" style="color:#94a3b8">No wind</td>
-              <td class="snap-score" style="color:#94a3b8">2</td>
+              <td class="snap-score" style="color:#94a3b8">10</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:2%;background:#94a3b8"></div>
+                <div class="snap-bar" style="width:10%;background:#94a3b8"></div>
               </td>
             </tr>
             </tbody>
@@ -646,7 +521,7 @@
           <span class="cond-bar-label">Sailing outlook</span>
           <div class="cond-bar-wrap">
             <div class="cond-bar-track">
-              <div class="cond-bar-mask" style="left:1%"></div>
+              <div class="cond-bar-mask" style="left:8%"></div>
               <div class="cond-zone-mark" style="left:60%"
                    title="Good threshold (score 60)"></div>
             </div>
@@ -654,12 +529,12 @@
               <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
             </div>
           </div>
-          <span class="cond-score-value" style="color:#94a3b8">1</span>
+          <span class="cond-score-value" style="color:#94a3b8">8</span>
         </div>
 
         <div class="meta-row">
           
-          <span class="meta-chip">p=1% +3d</span>
+          <span class="meta-chip">p=8% +3d</span>
         </div>
 
         
@@ -673,12 +548,12 @@
           <table class="snap-table">
             <tbody>
             <tr class="snap-row">
-              <td class="snap-time">Snapshot 20:00</td>
+              <td class="snap-time">Snapshot 08:00</td>
               <td class="snap-dot">🌫</td>
               <td class="snap-label" style="color:#94a3b8">No wind</td>
-              <td class="snap-score" style="color:#94a3b8">1</td>
+              <td class="snap-score" style="color:#94a3b8">8</td>
               <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:1%;background:#94a3b8"></div>
+                <div class="snap-bar" style="width:8%;background:#94a3b8"></div>
               </td>
             </tr>
             </tbody>
