@@ -1,14 +1,15 @@
 name: Wind Forecast
 
 on:
-  # Run at each configured snapshot time (config.toml: ["06:00","18:00","00:00","05:00"]).
-  # GitHub Actions cron is UTC — adjust offsets below for your local timezone.
-  # Example below assumes CET (UTC+1); shift by +1 hour for CEST (UTC+2 in summer).
+  # Six daily runs at CET times (UTC+1 in winter, UTC+2 in summer).
+  # Cron times below target CET (UTC+1); in CEST (summer) they fire 1 h later locally.
   schedule:
-    - cron: '0 23 * * *'  # 00:00 CET  → previous day 23:00 UTC
-    - cron: '0  5 * * *'  # 06:00 CET  → 54:00 UTC
-    - cron: '0 11 * * *'  # 12:00 CET  →115:00 UTC
-    - cron: '0 17 * * *'  # 18:00 CET  → 17:00 UTC
+    - cron: '0  4 * * *'  # 05:00 CET  / 06:00 CEST
+    - cron: '0  6 * * *'  # 07:00 CET  / 08:00 CEST
+    - cron: '0  9 * * *'  # 10:00 CET  / 11:00 CEST
+    - cron: '0 12 * * *'  # 13:00 CET  / 14:00 CEST
+    - cron: '0 17 * * *'  # 18:00 CET  / 19:00 CEST
+    - cron: '0 21 * * *'  # 22:00 CET  / 23:00 CEST
 
   workflow_dispatch:        # also triggerable manually from the Actions tab
 

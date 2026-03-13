@@ -69,8 +69,8 @@ def step_stitch() -> None:
 
 def step_predict(ref_date: date | None) -> None:
     import pandas as pd
-    from model.predict import predict_all
-    from model.history import record_predictions, backfill_outcomes, backfill_predictions_from_history
+    from model.predict import predict_now, merge_predictions
+    from model.history import record_predictions, backfill_outcomes
     from model.features import compute_daily_target
 
     label = str(ref_date or date.today())
@@ -82,34 +82,34 @@ def step_predict(ref_date: date | None) -> None:
         raise FileNotFoundError(f"No parquet data at {parquet} — run step_stitch first.")
 
     df = pd.read_parquet(parquet)
+    config_path = os.path.join(_ROOT, "config.toml")
 
-    import joblib
-    model_path = os.path.join(_ROOT, cfg["paths"]["model_file"])
-    bundle = joblib.load(model_path)
+    # Use current time on ref_date (or now if no ref_date given)
+    snap_dt = None
+    if ref_date is not None:
+        now = datetime.now()
+        snap_dt = pd.Timestamp(
+            year=ref_date.year, month=ref_date.month, day=ref_date.day,
+            hour=now.hour, minute=0,
+        )
 
-    results = predict_all(df, ref_date, os.path.join(_ROOT, "config.toml"))
+    results = predict_now(df, config_path, snap_dt=snap_dt)
 
-    out_path = os.path.join(_ROOT, cfg["paths"]["predictions_file"])
-    with open(out_path, "w") as f:
-        json.dump(results, f, indent=2)
-
-    n_days = len({r["predicting_date"] for r in results if "predicting_date" in r})
-    print(f"Saved: {out_path}  ({len(results)} snapshot(s), {n_days} day(s))", flush=True)
+    # Merge into rolling 7-day predictions.json
+    pred_path = os.path.join(_ROOT, cfg["paths"]["predictions_file"])
+    merged = merge_predictions(results, pred_path)
+    n_days = len({r["predicting_date"] for r in merged if "predicting_date" in r})
+    print(f"Saved: {pred_path}  ({len(merged)} entries, {n_days} day(s))", flush=True)
 
     # ── Persist to history DB ─────────────────────────────────────────────────
     db_path = os.path.join(_ROOT, "predictions.db")
-    n_written = record_predictions(results, db_path)
+    direct = [r for r in results if not r.get("is_extended_forecast")]
+    n_written = record_predictions(direct, db_path)
     print(f"History: wrote {n_written} row(s) to {db_path}", flush=True)
 
-    # Backfill ground-truth outcomes for any past days now in the parquet
     daily_quality = compute_daily_target(df, cfg)
     n_outcomes = backfill_outcomes(daily_quality, db_path)
     print(f"History: upserted {n_outcomes} outcome(s)", flush=True)
-
-    # Backfill retrospective predictions for outcome dates that have none yet
-    n_backfilled = backfill_predictions_from_history(df, cfg, bundle, db_path)
-    if n_backfilled:
-        print(f"History: backfilled {n_backfilled} historical prediction row(s)", flush=True)
 
 
 def step_render() -> None:
