@@ -100,17 +100,15 @@ CREATE INDEX IF NOT EXISTS idx_fs_date ON forecast_snapshots(predicting_date);
 - Replace `pd.read_parquet(...)` with `load_weather_readings(start=date.today() - timedelta(days=30), end=date.today())` — sufficient for feature extraction (features use at most 28-day trailing window)
 - `_circular_std` → `utils/circular.py`
 - `load_config()` → `utils/config.py`
-
-**`model/history.py`**
-- Connection helpers delegate to `utils/db.py`
-- API unchanged
-
-**`model/predict.py`**
 - `merge_predictions()` replaced by `save_forecast_snapshots(results, days_to_keep=7)` that:
   1. Upserts each entry as `(snapshot, predicting_date, payload=json.dumps(entry))` into `forecast_snapshots`
   2. Issues `DELETE FROM forecast_snapshots WHERE predicting_date < <cutoff_date>` to prune old entries
 - `load_forecast_snapshots(days=7) -> list[dict]` added: queries `forecast_snapshots WHERE predicting_date >= cutoff`, calls `json.loads(row["payload"])` for each row, returns `list[dict]` — same type `build_html()` accepts
 - History-recording (`record_predictions`, `backfill_outcomes`) lives only here, not duplicated in `deploy.py`
+
+**`model/history.py`**
+- Connection helpers delegate to `utils/db.py`
+- API unchanged
 
 **`deploy.py`**
 - Remove `step_stitch()` parquet reference
