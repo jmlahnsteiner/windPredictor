@@ -142,7 +142,7 @@ def step_publish(dry_run: bool) -> None:
     msg = f"forecast: update {datetime.now().strftime('%-d %b %Y %H:%M')}"
 
     # Stage output artifacts; only include files that actually exist
-    candidates = ["index.html", "data.parquet", "predictions.db"]
+    candidates = ["index.html", "data.parquet"]
     to_stage = [f for f in candidates if os.path.exists(os.path.join(_ROOT, f))]
     subprocess.run(["git", "add"] + to_stage, cwd=_ROOT, check=True)
 

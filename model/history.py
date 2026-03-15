@@ -1,10 +1,14 @@
 """
-model/history.py — Persist every prediction run to a local SQLite database.
+model/history.py — Persist every prediction run to the database.
+
+Supports two backends selected automatically via the SUPABASE_DB_URL env var:
+  • PostgreSQL (Supabase) — when SUPABASE_DB_URL is set (preferred)
+  • SQLite (local fallback) — when running without credentials
 
 Schema
 ------
 predictions
-    id              INTEGER PRIMARY KEY AUTOINCREMENT
+    id              SERIAL / AUTOINCREMENT PRIMARY KEY
     run_ts          TEXT    ISO-8601 UTC timestamp of when the prediction was made
     snapshot_dt     TEXT    ISO-8601 datetime the features were extracted from
     predicting_date TEXT    YYYY-MM-DD date being predicted
@@ -20,18 +24,27 @@ outcomes (filled in retrospectively once the day has passed)
 Usage
 -----
     from model.history import record_predictions, load_history, record_outcome
-    record_predictions(results, db_path="predictions.db")
-    df = load_history(db_path="predictions.db", days=30)
+    record_predictions(results)
+    df = load_history(days=30)
 """
 
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 import pandas as pd
 
-_SCHEMA = """
+# ── Backend detection ─────────────────────────────────────────────────────────
+
+def _backend() -> str:
+    """Return 'postgres' if SUPABASE_DB_URL is set, else 'sqlite'."""
+    return "postgres" if os.environ.get("SUPABASE_DB_URL") else "sqlite"
+
+
+# ── SQLite schema ─────────────────────────────────────────────────────────────
+
+_SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS predictions (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     run_ts          TEXT    NOT NULL,
@@ -51,18 +64,44 @@ CREATE INDEX IF NOT EXISTS idx_run_ts    ON predictions(run_ts);
 """
 
 
-def _connect(db_path: str) -> sqlite3.Connection:
+# ── Connection helpers ────────────────────────────────────────────────────────
+
+def _connect_sqlite(db_path: str) -> sqlite3.Connection:
     os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
     con = sqlite3.connect(db_path)
-    con.executescript(_SCHEMA)
+    con.executescript(_SQLITE_SCHEMA)
     con.commit()
     return con
 
 
+def _connect_postgres():
+    try:
+        import psycopg2
+    except ImportError as e:
+        raise ImportError(
+            "psycopg2-binary is required for the Supabase backend. "
+            "Run: pip install psycopg2-binary"
+        ) from e
+    return psycopg2.connect(os.environ["SUPABASE_DB_URL"])
+
+
+def _connect(db_path: str = "predictions.db"):
+    """Return (connection, backend). db_path is only used for the SQLite backend."""
+    if _backend() == "postgres":
+        return _connect_postgres(), "postgres"
+    return _connect_sqlite(db_path), "sqlite"
+
+
+def _ph(backend: str) -> str:
+    """SQL placeholder character for the given backend."""
+    return "%s" if backend == "postgres" else "?"
+
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
 def record_predictions(results: list[dict], db_path: str = "predictions.db") -> int:
     """
-    Insert prediction results (as returned by predict_all) into the database.
-
+    Insert prediction results into the database.
     Skips entries that have an "error" key or are missing required fields.
     Returns the number of rows inserted.
     """
@@ -83,13 +122,19 @@ def record_predictions(results: list[dict], db_path: str = "predictions.db") -> 
     if not rows:
         return 0
 
-    with _connect(db_path) as con:
-        con.executemany(
-            "INSERT INTO predictions "
-            "(run_ts, snapshot_dt, predicting_date, probability, good, threshold) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            rows,
-        )
+    con, backend = _connect(db_path)
+    ph = _ph(backend)
+    sql = (
+        f"INSERT INTO predictions "
+        f"(run_ts, snapshot_dt, predicting_date, probability, good, threshold) "
+        f"VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph})"
+    )
+    try:
+        cur = con.cursor()
+        cur.executemany(sql, rows)
+        con.commit()
+    finally:
+        con.close()
     return len(rows)
 
 
@@ -101,42 +146,69 @@ def record_outcome(
 ) -> None:
     """
     Store the ground-truth outcome for a date so accuracy can be computed later.
-    Called automatically by record_predictions_with_actuals when daily targets
-    are available (i.e. the day has already passed).
     """
-    with _connect(db_path) as con:
-        con.execute(
-            "INSERT OR REPLACE INTO outcomes (predicting_date, actual_good, actual_frac) "
-            "VALUES (?, ?, ?)",
-            (predicting_date, int(actual_good), float(actual_frac)),
+    con, backend = _connect(db_path)
+    ph = _ph(backend)
+    if backend == "postgres":
+        sql = (
+            f"INSERT INTO outcomes (predicting_date, actual_good, actual_frac) "
+            f"VALUES ({ph}, {ph}, {ph}) "
+            f"ON CONFLICT (predicting_date) DO UPDATE "
+            f"SET actual_good = EXCLUDED.actual_good, actual_frac = EXCLUDED.actual_frac"
         )
+    else:
+        sql = (
+            f"INSERT OR REPLACE INTO outcomes (predicting_date, actual_good, actual_frac) "
+            f"VALUES ({ph}, {ph}, {ph})"
+        )
+    try:
+        cur = con.cursor()
+        cur.execute(sql, (predicting_date, int(actual_good), float(actual_frac)))
+        con.commit()
+    finally:
+        con.close()
 
 
 def backfill_outcomes(daily_quality: "pd.Series", db_path: str = "predictions.db") -> int:
     """
     Backfill the outcomes table from a pd.Series indexed by datetime.date.
     daily_quality values are fractions (0-1); threshold from the first prediction row is used.
-
     Returns the number of rows upserted.
     """
     if daily_quality.empty:
         return 0
 
-    # Determine threshold from DB (use most common value)
-    with _connect(db_path) as con:
-        row = con.execute("SELECT threshold FROM predictions LIMIT 1").fetchone()
-    threshold = row[0] if row else 0.30
+    con, backend = _connect(db_path)
+    ph = _ph(backend)
 
-    rows = [
-        (str(d), int(float(v) >= threshold), float(v))
-        for d, v in daily_quality.items()
-    ]
-    with _connect(db_path) as con:
-        con.executemany(
-            "INSERT OR REPLACE INTO outcomes (predicting_date, actual_good, actual_frac) "
-            "VALUES (?, ?, ?)",
-            rows,
-        )
+    try:
+        cur = con.cursor()
+        cur.execute("SELECT threshold FROM predictions LIMIT 1")
+        row = cur.fetchone()
+        threshold = row[0] if row else 0.30
+
+        rows = [
+            (str(d), int(float(v) >= threshold), float(v))
+            for d, v in daily_quality.items()
+        ]
+
+        if backend == "postgres":
+            sql = (
+                f"INSERT INTO outcomes (predicting_date, actual_good, actual_frac) "
+                f"VALUES ({ph}, {ph}, {ph}) "
+                f"ON CONFLICT (predicting_date) DO UPDATE "
+                f"SET actual_good = EXCLUDED.actual_good, actual_frac = EXCLUDED.actual_frac"
+            )
+        else:
+            sql = (
+                f"INSERT OR REPLACE INTO outcomes (predicting_date, actual_good, actual_frac) "
+                f"VALUES ({ph}, {ph}, {ph})"
+            )
+
+        cur.executemany(sql, rows)
+        con.commit()
+    finally:
+        con.close()
     return len(rows)
 
 
@@ -157,20 +229,32 @@ def load_history(
         run_ts, snapshot_dt, predicting_date, probability, good,
         actual_good (NaN when not yet known), actual_frac (NaN when not yet known)
     """
-    if not os.path.exists(db_path):
+    backend = _backend()
+
+    # SQLite: don't bother if the file doesn't exist yet
+    if backend == "sqlite" and not os.path.exists(db_path):
         return pd.DataFrame()
 
+    ph = _ph(backend)
     where_clauses = []
     params: list = []
 
     if days is not None:
-        where_clauses.append(
-            "p.predicting_date >= date('now', ?)"
-        )
-        params.append(f"-{days} days")
+        if backend == "postgres":
+            cutoff = (date.today() - timedelta(days=days)).isoformat()
+            where_clauses.append(f"p.predicting_date >= {ph}")
+            params.append(cutoff)
+        else:
+            where_clauses.append(f"p.predicting_date >= date('now', {ph})")
+            params.append(f"-{days} days")
 
     if snapshot_hour is not None:
-        where_clauses.append("CAST(strftime('%H', p.snapshot_dt) AS INTEGER) = ?")
+        if backend == "postgres":
+            where_clauses.append(
+                f"EXTRACT(HOUR FROM p.snapshot_dt::timestamp)::integer = {ph}"
+            )
+        else:
+            where_clauses.append(f"CAST(strftime('%H', p.snapshot_dt) AS INTEGER) = {ph}")
         params.append(snapshot_hour)
 
     where = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
@@ -190,8 +274,17 @@ def load_history(
         {where}
         ORDER BY p.predicting_date, p.snapshot_dt
     """
-    with _connect(db_path) as con:
-        df = pd.read_sql_query(sql, con, params=params)
+
+    con, _ = _connect(db_path)
+    try:
+        cur = con.cursor()
+        cur.execute(sql, params) if params else cur.execute(sql)
+        cols = [desc[0] for desc in cur.description]
+        df = pd.DataFrame(cur.fetchall(), columns=cols)
+    except Exception:
+        df = pd.DataFrame()
+    finally:
+        con.close()
 
     return df
 
@@ -199,16 +292,13 @@ def load_history(
 def accuracy_summary(db_path: str = "predictions.db", days: int = 30) -> dict:
     """
     Compute prediction accuracy over the last `days` calendar days.
-
     Uses only the most-recent snapshot per target date (most informative).
     Returns a dict with keys: n_evaluated, accuracy, precision, recall.
-    Returns {} if there are no evaluated days.
     """
     df = load_history(db_path=db_path, days=days)
     if df.empty:
         return {}
 
-    # Keep most-recent prediction per predicting_date
     df = df.sort_values("snapshot_dt").groupby("predicting_date").last().reset_index()
     evaluated = df.dropna(subset=["actual_good"])
     if evaluated.empty:

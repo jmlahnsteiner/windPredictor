@@ -485,12 +485,13 @@ def _history_html(db_path: str, days: int = 60) -> str:
       dashed border = prediction was wrong
       pending dot   = no outcome yet
     """
-    if not os.path.exists(db_path):
+    try:
+        from model.history import _backend, load_history, accuracy_summary
+    except ImportError:
         return ""
 
-    try:
-        from model.history import load_history, accuracy_summary
-    except ImportError:
+    # SQLite: skip if the file doesn't exist yet
+    if _backend() == "sqlite" and not os.path.exists(db_path):
         return ""
 
     df = load_history(db_path=db_path, days=days)

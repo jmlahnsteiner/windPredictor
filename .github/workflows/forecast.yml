@@ -35,10 +35,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Restore data.parquet and model weights from the previous run.
+      # Restore model weights from the previous run.
       # The run_id key ensures a fresh save each time; restore-keys picks
       # the most recent available cache when no exact match exists.
-      # data.parquet and predictions.db live in the repo (committed each run).
+      # data.parquet lives in the repo (committed each run).
+      # predictions history lives in Supabase (SUPABASE_DB_URL secret).
       # Only the model weights need caching — they change rarely (retrain only
       # when absent) and are too large to commit on every deploy.
       - name: Restore model cache
@@ -74,9 +75,13 @@ jobs:
           fi
 
       - name: Predict
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: python model/predict.py
 
       - name: Render HTML
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: python render_html.py
 
       - name: Commit and push index.html
@@ -84,8 +89,7 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add index.html
-          [ -f data.parquet   ] && git add data.parquet   || true
-          [ -f predictions.db ] && git add predictions.db || true
+          [ -f data.parquet ] && git add data.parquet || true
           if git diff --cached --quiet; then
             echo "Nothing changed — skipping commit."
           else
