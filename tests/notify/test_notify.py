@@ -46,3 +46,44 @@ def test_load_today_entry_picks_latest_snapshot():
     # ENTRY_B has a later snapshot — must be returned
     result = load_today_entry([ENTRY_A, ENTRY_B, ENTRY_OTHER], "2026-03-15")
     assert result == ENTRY_B
+
+
+from notify.notify import build_body
+
+
+def test_build_body_with_nwp():
+    entry = {
+        "probability": 0.72,
+        "condition_label": "Good",
+        "nwp_forecast": {"mean_wind_kn": 5.2, "max_gust_kn": 9.1},
+    }
+    body = build_body(entry, "08:00", "16:00")
+    assert "72%" in body
+    assert "Good" in body
+    assert "avg 5.2 kn" in body
+    assert "gust 9.1 kn" in body
+    assert "08:00–16:00" in body
+
+
+def test_build_body_without_nwp():
+    entry = {"probability": 0.55, "condition_label": "OK"}
+    body = build_body(entry, "08:00", "16:00")
+    assert "55%" in body
+    assert "avg" not in body
+    assert "gust" not in body
+
+
+def test_build_body_condition_label_fallback():
+    entry = {"probability": 0.65}
+    body = build_body(entry, "08:00", "16:00")
+    assert "Good" in body  # fallback when field absent
+
+
+def test_build_body_partial_nwp_omits_wind_line():
+    # Only mean_wind_kn present, max_gust_kn absent → omit wind line entirely
+    entry = {
+        "probability": 0.60,
+        "nwp_forecast": {"mean_wind_kn": 5.0},  # max_gust_kn missing
+    }
+    body = build_body(entry, "08:00", "16:00")
+    assert "avg" not in body
