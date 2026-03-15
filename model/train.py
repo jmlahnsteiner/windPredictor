@@ -8,7 +8,6 @@ Usage:
 
 import os
 import sys
-import tomllib
 
 import joblib
 import pandas as pd
@@ -18,14 +17,10 @@ from sklearn.model_selection import StratifiedKFold, cross_val_score
 # Allow running from project root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from model.features import build_training_pairs
+from utils.config import load_config
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(_HERE, "..", "config.toml")
-
-
-def load_config(path: str = DEFAULT_CONFIG) -> dict:
-    with open(path, "rb") as f:
-        return tomllib.load(f)
 
 
 def train(config_path: str = DEFAULT_CONFIG) -> None:
@@ -33,8 +28,12 @@ def train(config_path: str = DEFAULT_CONFIG) -> None:
     root = os.path.dirname(os.path.abspath(config_path))
 
     # --- Load data ---
-    parquet_path = os.path.join(root, cfg["paths"]["data_parquet"])
-    df = pd.read_parquet(parquet_path)
+    from input.weather_store import load_weather_readings
+    print("Loading all weather readings from database …")
+    df = load_weather_readings()
+    if df.empty:
+        print("ERROR: No weather data found. Run the scraper and stitch first.")
+        return
     print(f"Loaded {len(df):,} rows  ({df.index.min().date()} → {df.index.max().date()})")
 
     # --- Build training pairs ---
