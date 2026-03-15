@@ -200,12 +200,12 @@ def build_html(
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Wind Predictor</title>
-  <link rel="manifest" href="/manifest.json">
+  <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="WindPredictor">
   <meta name="theme-color" content="#0077cc">
-  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <style>
     /* ── Tokens ── */
     :root {{
@@ -600,7 +600,7 @@ def build_html(
     </footer>
   </div>
   <script>
-    if ('serviceWorker' in navigator) {{ navigator.serviceWorker.register('/sw.js'); }}
+    if ('serviceWorker' in navigator) {{ navigator.serviceWorker.register('sw.js'); }}
   </script>
 </body>
 </html>"""
