@@ -41,12 +41,6 @@ _COND_BADGE: dict[str, tuple[str, str, str]] = {
     "Storm":          ("#f472b6", "rgba(244,114,182,0.12)", "rgba(244,114,182,0.25)"),
 }
 
-def _badge_style(label: str) -> str:
-    """Inline CSS for a condition-label badge."""
-    txt, bg, bd = _COND_BADGE.get(label, ("#475569", "#f8fafc", "#e2e8f0"))
-    return f"color:{txt};background:{bg};border:1px solid {bd}"
-
-
 def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -> str:
     sailing      = cfg.get("sailing", {})
     window_start = sailing.get("window_start", "08:00")
@@ -270,51 +264,12 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
     .day-card.poor {{ border-left: 4px solid var(--c-border); }}
     .day-card.past {{ border-left: 4px solid var(--c-border); opacity: 0.72; }}
 
-    /* card header */
-    .card-header {{
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 1rem 1.25rem 0.75rem;
-      gap: 0.75rem;
-    }}
-    .card-title {{
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }}
-    .card-icon {{ font-size: 1.4rem; line-height: 1; }}
-    .card-title h2 {{
-      font-size: 1rem;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-    }}
-
-    /* badge */
-    .card-badge {{
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 0.2rem 0.65rem;
-      border-radius: 999px;
-      white-space: nowrap;
-    }}
-
-    /* card body */
-    .card-body {{ padding: 0 1.25rem 1.25rem; }}
-
     /* ── Condition score bar ── */
     .cond-section {{
       display: flex;
       align-items: flex-start;
       gap: 0.75rem;
       margin-bottom: 0.85rem;
-    }}
-    .cond-bar-label {{
-      font-size: 0.78rem;
-      color: var(--c-muted);
-      white-space: nowrap;
-      min-width: 130px;
-      padding-top: 0.1rem;
     }}
     .cond-bar-wrap {{ flex: 1; }}
     .cond-bar-track {{
@@ -381,8 +336,10 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
     /* Expected-condition chips carry slightly stronger colour to distinguish
        from secondary info chips like the model probability */
     .exp-chip {{
-      color: var(--c-text);
+      color: var(--c-accent);
       font-weight: 500;
+      background: rgba(34,211,238,0.08);
+      border-color: rgba(34,211,238,0.2);
     }}
 
     /* ── Window stats ── */
@@ -417,44 +374,6 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
     .stats-observed .stats-label {{ color: var(--c-good); }}
     .stats-nwp      .stats-label {{ color: #7c3aed; }}
 
-    /* snapshots collapsible */
-    .snapshots summary {{
-      cursor: pointer;
-      font-size: 0.8rem;
-      color: var(--c-muted);
-      user-select: none;
-      list-style: none;
-      display: flex;
-      align-items: center;
-      gap: 0.35rem;
-    }}
-    .snapshots summary::before {{
-      content: "▸";
-      font-size: 0.7rem;
-      transition: transform 0.2s;
-    }}
-    .snapshots[open] summary::before {{ transform: rotate(90deg); }}
-    .snapshots summary::-webkit-details-marker {{ display: none; }}
-
-    .snap-table {{
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 0.6rem;
-      font-size: 0.8rem;
-    }}
-    .snap-row {{ border-top: 1px solid var(--c-border); }}
-    .snap-row td {{ padding: 0.3rem 0.4rem; vertical-align: middle; }}
-    .snap-time  {{ color: var(--c-muted); width: 100px; }}
-    .snap-dot   {{ width: 22px; text-align: center; font-size: 1rem; line-height: 1; }}
-    .snap-label {{ font-weight: 600; white-space: nowrap; }}
-    .snap-score {{ width: 32px; text-align: right; font-weight: 700; font-size: 0.85rem; }}
-    .snap-bar-cell {{ }}
-    .snap-bar {{
-      height: 5px;
-      border-radius: 999px;
-      opacity: 0.75;
-    }}
-
     /* ── Wind distribution charts ── */
     .wind-svg .wv-lbl {{
       fill: var(--c-muted);
@@ -468,60 +387,6 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }}
     .dropout-svg .do-track {{ stroke: var(--c-border); }}
-
-    /* ── History section ── */
-    .history-section {{
-      background: var(--c-surface);
-      border: 1px solid var(--c-border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 1rem 1.25rem;
-      margin-bottom: 1.25rem;
-    }}
-    .history-title {{
-      font-size: 0.875rem;
-      font-weight: 600;
-      margin-bottom: 0.6rem;
-    }}
-    .history-days {{
-      font-weight: 400;
-      color: var(--c-muted);
-      font-size: 0.8rem;
-    }}
-    .hist-dot {{
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border-radius: 3px;
-      vertical-align: middle;
-      cursor: default;
-    }}
-    .hist-pending {{
-      background: none;
-      border: none;
-      color: #94a3b8;
-      font-size: 1.2rem;
-      line-height: 1;
-      width: auto;
-      height: auto;
-    }}
-    .history-dots {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.2rem;
-      margin-bottom: 0.5rem;
-      line-height: 1;
-      letter-spacing: 0.05em;
-    }}
-    .history-legend {{
-      font-size: 0.72rem;
-      color: var(--c-muted);
-      margin-bottom: 0.4rem;
-    }}
-    .history-stats {{
-      font-size: 0.78rem;
-      color: var(--c-text);
-    }}
 
     /* ── Hero card ── */
     .hero-card {{
