@@ -1,50 +1,41 @@
 #!/usr/bin/env python3
 """
-deploy.py — Full pipeline: download → stitch → predict → render → publish.
+deploy.py — Local pipeline: download → stitch → predict → render.
 
-Downloads the latest weather data, runs all configured snapshot predictions,
-renders index.html, and pushes it to the remote (GitHub Pages).
+Generates index.html for local preview. Does NOT push to git.
+CI (GitHub Actions) handles deployment via artifact-based Pages.
 
 Usage:
     python deploy.py                      # last 2 days, predict for today
     python deploy.py --date 2026-03-08   # predict for a specific date
     python deploy.py --days 7            # download last 7 days of data
-    python deploy.py --dry-run           # skip git push
     python deploy.py --no-download       # skip download, use existing xlsx files
+    python deploy.py --preview           # open index.html in browser after render
 """
 
 import argparse
-import json
 import os
-import subprocess
 import sys
-import tomllib
 from datetime import date, datetime, timedelta
 
 _ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, _ROOT)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
 def _banner(msg: str) -> None:
     print(f"\n{'─' * 60}\n{msg}\n{'─' * 60}", flush=True)
 
 
 def _load_config() -> dict:
-    with open(os.path.join(_ROOT, "config.toml"), "rb") as f:
-        return tomllib.load(f)
+    from utils.config import load_config
+    return load_config(os.path.join(_ROOT, "config.toml"))
 
-
-# ── Pipeline steps ────────────────────────────────────────────────────────────
 
 def step_download(days: int) -> None:
     _banner(f"[1/4] Downloading last {days} day(s) of weather data")
     from input.scraper import download_range
 
     today = date.today()
-    # Include today so predictions use data up to the current moment.
-    # today's file is always re-fetched (partial-day data improves with each run).
     end   = today
     start = end - timedelta(days=days - 1)
     print(f"Range: {start} → {end}  (today re-fetched for latest readings)", flush=True)
@@ -57,34 +48,28 @@ def step_download(days: int) -> None:
 
 
 def step_stitch() -> None:
-    _banner("[2/4] Stitching xlsx → parquet")
-    from input.stitcher import stitch
-
-    cfg = _load_config()
-    stitch(
-        input_dir=os.path.join(_ROOT, "input", "downloaded_files"),
-        output_path=os.path.join(_ROOT, cfg["paths"]["data_parquet"]),
-    )
+    _banner("[2/4] Stitching xlsx → database")
+    from input.stitcher import stitch_to_db
+    stitch_to_db(input_dir=os.path.join(_ROOT, "input", "downloaded_files"))
 
 
 def step_predict(ref_date: date | None) -> None:
-    import pandas as pd
-    from model.predict import predict_now, merge_predictions
-    from model.history import record_predictions, backfill_outcomes
-    from model.features import compute_daily_target
-
     label = str(ref_date or date.today())
     _banner(f"[3/4] Running predictions  (ref date: {label})")
 
-    cfg = _load_config()
-    parquet = os.path.join(_ROOT, cfg["paths"]["data_parquet"])
-    if not os.path.exists(parquet):
-        raise FileNotFoundError(f"No parquet data at {parquet} — run step_stitch first.")
+    import pandas as pd
+    from input.weather_store import load_weather_readings
+    from model.predict import predict_now, save_forecast_snapshots
 
-    df = pd.read_parquet(parquet)
+    df = load_weather_readings(
+        start=date.today() - timedelta(days=35),
+        end=date.today(),
+    )
+    if df.empty:
+        raise RuntimeError("No weather data found. Run step_stitch first.")
+
     config_path = os.path.join(_ROOT, "config.toml")
 
-    # Use current time on ref_date (or now if no ref_date given)
     snap_dt = None
     if ref_date is not None:
         now = datetime.now()
@@ -95,38 +80,36 @@ def step_predict(ref_date: date | None) -> None:
 
     results = predict_now(df, config_path, snap_dt=snap_dt)
 
-    # Merge into rolling 7-day predictions.json
-    pred_path = os.path.join(_ROOT, cfg["paths"]["predictions_file"])
-    merged = merge_predictions(results, pred_path)
-    n_days = len({r["predicting_date"] for r in merged if "predicting_date" in r})
-    print(f"Saved: {pred_path}  ({len(merged)} entries, {n_days} day(s))", flush=True)
+    # Save forecast snapshots to DB (replaces predictions.json)
+    save_forecast_snapshots(results)
+    print(f"Forecast snapshots saved to DB  ({len(results)} entries)", flush=True)
 
-    # ── Persist to history DB ─────────────────────────────────────────────────
-    db_path = os.path.join(_ROOT, "predictions.db")
+    # History recording
+    from model.history import record_predictions, backfill_outcomes
+    from model.features import compute_daily_target
+    from utils.config import load_config
+
+    cfg = load_config(config_path)
     direct = [r for r in results
               if not r.get("is_extended_forecast") and not r.get("window_observed_only")]
-    n_written = record_predictions(direct, db_path)
-    print(f"History: wrote {n_written} row(s) to {db_path}", flush=True)
+    n_written = record_predictions(direct)
+    print(f"History: wrote {n_written} row(s)", flush=True)
 
     daily_quality = compute_daily_target(df, cfg)
-    n_outcomes = backfill_outcomes(daily_quality, db_path)
+    n_outcomes = backfill_outcomes(daily_quality)
     print(f"History: upserted {n_outcomes} outcome(s)", flush=True)
 
 
 def step_render() -> None:
     _banner("[4/4] Rendering index.html")
-    from render_html import build_html, load_config
+    from render_html import build_html
+    from model.predict import load_forecast_snapshots
+    from utils.config import load_config
 
-    cfg = _load_config()
-    pred_path = os.path.join(_ROOT, cfg["paths"]["predictions_file"])
-    with open(pred_path) as f:
-        predictions = json.load(f)
+    predictions = load_forecast_snapshots()
+    cfg = load_config(os.path.join(_ROOT, "config.toml"))
 
-    html = build_html(
-        predictions,
-        load_config(os.path.join(_ROOT, "config.toml")),
-        db_path=os.path.join(_ROOT, "predictions.db"),
-    )
+    html = build_html(predictions, cfg)
 
     out_path = os.path.join(_ROOT, "index.html")
     with open(out_path, "w") as f:
@@ -136,63 +119,17 @@ def step_render() -> None:
     print(f"Written: {out_path}  ({len(predictions)} predictions, {n_days} day(s))", flush=True)
 
 
-def step_publish(dry_run: bool) -> None:
-    _banner("Publishing — git add / commit / push")
-
-    msg = f"forecast: update {datetime.now().strftime('%-d %b %Y %H:%M')}"
-
-    # Stage output artifacts; only include files that actually exist
-    candidates = ["index.html", "data.parquet"]
-    to_stage = [f for f in candidates if os.path.exists(os.path.join(_ROOT, f))]
-    subprocess.run(["git", "add"] + to_stage, cwd=_ROOT, check=True)
-
-    # Check whether there is actually something new to commit
-    diff = subprocess.run(
-        ["git", "diff", "--cached", "--quiet"],
-        cwd=_ROOT,
-    )
-    if diff.returncode == 0:
-        print("index.html unchanged — nothing to commit.", flush=True)
-        return
-
-    subprocess.run(["git", "commit", "-m", msg], cwd=_ROOT, check=True)
-    print(f"Committed: {msg}", flush=True)
-
-    if dry_run:
-        print("[dry-run] Skipping git push.", flush=True)
-    else:
-        subprocess.run(["git", "push"], cwd=_ROOT, check=True)
-        print("Pushed to remote (GitHub Pages).", flush=True)
-
-
-# ── Entry point ───────────────────────────────────────────────────────────────
-
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Wind-predictor full deploy pipeline",
+        description="Wind-predictor local pipeline (no git push)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument(
-        "--date", metavar="YYYY-MM-DD",
-        help="Reference date for predictions (default: today)",
-    )
-    parser.add_argument(
-        "--days", type=int, default=2, metavar="N",
-        help="Days of history to download (default: 2)",
-    )
-    parser.add_argument(
-        "--dry-run", action="store_true",
-        help="Skip git push",
-    )
-    parser.add_argument(
-        "--no-download", action="store_true",
-        help="Skip scraping step (use existing xlsx files)",
-    )
-    parser.add_argument(
-        "--no-stitch", action="store_true",
-        help="Skip stitching step (use existing parquet)",
-    )
+    parser.add_argument("--date",        metavar="YYYY-MM-DD")
+    parser.add_argument("--days",        type=int, default=2)
+    parser.add_argument("--no-download", action="store_true")
+    parser.add_argument("--no-stitch",   action="store_true")
+    parser.add_argument("--preview",     action="store_true", help="Open index.html in browser")
     args = parser.parse_args()
 
     ref_date: date | None = None
@@ -206,8 +143,12 @@ def main() -> None:
             step_stitch()
         step_predict(ref_date)
         step_render()
-        step_publish(args.dry_run)
         print("\nAll done.", flush=True)
+
+        if args.preview:
+            import webbrowser
+            webbrowser.open(os.path.join(_ROOT, "index.html"))
+
     except Exception as exc:
         print(f"\nFailed: {exc}", file=sys.stderr)
         sys.exit(1)
