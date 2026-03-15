@@ -1,12 +1,11 @@
 """
-stitcher.py — Combine daily Ecowitt xlsx files into a single Parquet time series.
+stitcher.py — Parse daily Ecowitt xlsx files and upsert rows into weather_readings DB.
 
-The output Parquet file is the canonical dataset for downstream analysis.
-Re-running is safe: existing data is merged and de-duplicated.
+Re-running is safe: existing rows are replaced (upsert by timestamp).
 
 Usage:
-    python stitcher.py                                   # defaults
-    python stitcher.py downloaded_files/ ../data.parquet # explicit paths
+    python stitcher.py                # defaults
+    python stitcher.py downloaded_files/  # explicit input dir
 """
 
 import glob
@@ -45,7 +44,6 @@ NUMERIC_COLS = [c for c in COLUMN_MAP.values() if c != "timestamp"]
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_INPUT_DIR = os.path.join(_HERE, "downloaded_files")
-DEFAULT_OUTPUT = os.path.join(_HERE, "..", "data.parquet")
 
 
 # ---------------------------------------------------------------------------
@@ -108,58 +106,41 @@ def parse_xlsx(path: str) -> pd.DataFrame | None:
     return df
 
 
-def stitch(
+def stitch_to_db(
     input_dir: str = DEFAULT_INPUT_DIR,
-    output_path: str = DEFAULT_OUTPUT,
-) -> pd.DataFrame:
+    db_path: str | None = None,
+) -> int:
     """
-    Load all xlsx files from input_dir, merge with any existing Parquet,
-    deduplicate, sort, and write back to output_path.
+    Parse all xlsx files in input_dir and upsert rows into weather_readings.
 
-    Returns the combined DataFrame.
+    Re-running is safe: existing rows are replaced (upsert by timestamp).
+    Returns number of rows upserted.
     """
+    import sys as _sys
+    _sys.path.insert(0, os.path.dirname(_HERE))
+    from input.weather_store import upsert_readings
+
     paths = sorted(glob.glob(os.path.join(input_dir, "*.xlsx")))
     if not paths:
         print(f"No xlsx files found in {input_dir}")
-        return pd.DataFrame()
+        return 0
 
-    frames: list[pd.DataFrame] = []
-
-    # Carry over existing data so re-runs are purely additive
-    if os.path.exists(output_path):
-        existing = pd.read_parquet(output_path)
-        frames.append(existing)
-        print(f"  [~] existing parquet: {len(existing)} rows")
-
+    total = 0
     for path in paths:
         df = parse_xlsx(path)
         if df is not None and not df.empty:
-            frames.append(df)
-            print(f"  [+] {os.path.basename(path)}: {len(df)} rows")
+            n = upsert_readings(df, db_path=db_path) if db_path else upsert_readings(df)
+            total += n
+            print(f"  [+] {os.path.basename(path)}: {n} rows upserted")
         else:
             print(f"  [-] {os.path.basename(path)}: skipped")
 
-    if not frames:
-        print("No valid data to stitch.")
-        return pd.DataFrame()
-
-    combined = pd.concat(frames)
-    combined = combined[~combined.index.duplicated(keep="first")]
-    combined = combined.sort_index()
-
-    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-    combined.to_parquet(output_path, engine="pyarrow", compression="snappy")
-
-    span = f"{combined.index.min().date()} → {combined.index.max().date()}"
-    print(f"\nStitched {len(frames)} source(s) → {len(combined)} rows  ({span})")
-    print(f"Saved: {os.path.abspath(output_path)}")
-    return combined
+    print(f"\nTotal: {total} rows upserted")
+    return total
 
 
 if __name__ == "__main__":
     args = sys.argv[1:]
-    input_dir = args[0] if len(args) > 0 else DEFAULT_INPUT_DIR
-    output_path = args[1] if len(args) > 1 else DEFAULT_OUTPUT
-    print(f"Input : {input_dir}")
-    print(f"Output: {output_path}\n")
-    stitch(input_dir, output_path)
+    input_dir = args[0] if args else DEFAULT_INPUT_DIR
+    print(f"Input: {input_dir}\n")
+    stitch_to_db(input_dir)
