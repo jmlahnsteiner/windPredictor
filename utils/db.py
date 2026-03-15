@@ -6,6 +6,12 @@ from pathlib import Path
 _ROOT = Path(__file__).parent.parent
 DEFAULT_SQLITE = str(_ROOT / "local.db")
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(_ROOT / ".env")
+except ImportError:
+    pass
+
 
 def backend() -> str:
     """Return 'postgres' if SUPABASE_DB_URL is set, else 'sqlite'."""
