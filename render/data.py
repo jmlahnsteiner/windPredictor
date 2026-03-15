@@ -114,14 +114,15 @@ def stats_html(headline: dict, cfg: dict) -> str:
     return '<div class="stats-block">' + "".join(rows) + "</div>\n"
 
 
-def history_html(db_path: str, days: int = 60) -> str:
+def history_html(db_path: str, days: int = 30) -> str:
     """
-    Render prediction accuracy history section.
-    (Previously _history_html in render_html.py)
-    Uses utils/db.backend() instead of importing model.history._backend.
+    Render prediction accuracy as a <details> foldout with stat cards + time-series chart.
+    days: look-back window for the chart. Accuracy summary uses all available data.
+    Returns '' if no history is available.
     """
     from utils.db import backend, DEFAULT_SQLITE
     from model.history import load_history, accuracy_summary
+    from render.charts import history_chart_svg
 
     bk = backend()
     actual_path = db_path or DEFAULT_SQLITE
@@ -132,80 +133,62 @@ def history_html(db_path: str, days: int = 60) -> str:
     if df.empty:
         return ""
 
-    # One row per predicting_date: use the last snapshot of each day
+    # One row per predicting_date using last snapshot
     df = df.sort_values("snapshot_dt").groupby("predicting_date").last().reset_index()
     df = df.sort_values("predicting_date")
 
-    summary = accuracy_summary(db_path=actual_path, days=days)
+    threshold = float(df["threshold"].iloc[-1]) if len(df) > 0 else 0.3
 
-    dots = ""
+    # Build rows for chart
+    rows = []
     for _, row in df.iterrows():
-        pred_good  = int(row["good"])
-        ag         = row["actual_good"]
-        af         = row["actual_frac"]
-        has_outcome = (ag is not None) and (ag == ag)
-        date_label  = row["predicting_date"]
-        prob_pct    = round(float(row["probability"]) * 100)
+        af = row["actual_frac"]
+        rows.append({
+            "predicting_date": row["predicting_date"],
+            "probability": float(row["probability"]),
+            "actual_frac": float(af) if (af is not None and af == af) else None,
+        })
 
-        if not has_outcome:
-            title = (
-                f"{date_label}: predicted {'good' if pred_good else 'poor'} "
-                f"({prob_pct}%) — outcome pending"
-            )
-            dots += (
-                f'<span class="hist-dot hist-pending" title="{title}">·</span>'
-            )
-        else:
-            actual_good  = int(ag)
-            actual_score = int(round(float(af) * 100)) if (af == af and af is not None) else 0
-            fill_color   = score_to_hex(actual_score)
-            correct      = pred_good == actual_good
-            pred_label   = "good" if pred_good else "poor"
-            act_label    = "good" if actual_good else "poor"
-            title = (
-                f"{date_label}: predicted {pred_label} ({prob_pct}%), "
-                f"actual {act_label} (score {actual_score}) "
-                f"[{'✓' if correct else '✗'}]"
-            )
-            border_style = "solid" if correct else "dashed"
-            border_color = "#15803d" if correct else "#dc2626"
-            dots += (
-                f'<span class="hist-dot" '
-                f'style="background:{fill_color};border:2px {border_style} {border_color};" '
-                f'title="{title}"></span>'
-            )
+    chart = history_chart_svg(rows, threshold=threshold)
 
-    if not dots:
-        return ""
+    # All-time accuracy summary (days=None → no time filter)
+    summary = accuracy_summary(db_path=actual_path, days=None)
 
-    # Accuracy stats line
-    stats_line = ""
+    stat_cards = ""
     if summary:
         n   = summary["n_evaluated"]
         acc = round(summary["accuracy"] * 100)
-        parts = [f"<strong>{acc}%</strong> accuracy over {n} evaluated days"]
+        stat_cards += (
+            f'<div class="hist-stat">'
+            f'<span class="hist-stat-val">{acc}%</span>'
+            f'<span class="hist-stat-lbl">Accuracy</span></div>'
+        )
+        stat_cards += (
+            f'<div class="hist-stat">'
+            f'<span class="hist-stat-val">{n}</span>'
+            f'<span class="hist-stat-lbl">Days evaluated</span></div>'
+        )
         if summary.get("precision") is not None:
-            parts.append(f"precision {round(summary['precision']*100)}%")
+            prec = round(summary["precision"] * 100)
+            stat_cards += (
+                f'<div class="hist-stat">'
+                f'<span class="hist-stat-val">{prec}%</span>'
+                f'<span class="hist-stat-lbl">Precision</span></div>'
+            )
         if summary.get("recall") is not None:
-            parts.append(f"recall {round(summary['recall']*100)}%")
-        stats_line = " · ".join(parts)
-
-    legend = (
-        '<span style="display:inline-block;width:12px;height:12px;background:#22c55e;'
-        'border:2px solid #15803d;border-radius:2px;vertical-align:middle"></span>'
-        ' correct &nbsp;'
-        '<span style="display:inline-block;width:12px;height:12px;background:#fbbf24;'
-        'border:2px dashed #dc2626;border-radius:2px;vertical-align:middle"></span>'
-        ' wrong &nbsp;'
-        '<span style="color:#94a3b8;font-size:1.1rem;vertical-align:middle">·</span>'
-        ' pending &nbsp;'
-        '<span style="font-size:0.68rem;color:var(--c-muted)">colour = actual conditions</span>'
-    )
+            rec = round(summary["recall"] * 100)
+            stat_cards += (
+                f'<div class="hist-stat">'
+                f'<span class="hist-stat-val">{rec}%</span>'
+                f'<span class="hist-stat-lbl">Recall</span></div>'
+            )
+        stat_cards = f'<div class="hist-stats">{stat_cards}</div>'
 
     return f"""
-    <section class="history-section">
-      <h3 class="history-title">Prediction history <span class="history-days">({days}d)</span></h3>
-      <div class="history-dots">{dots}</div>
-      <div class="history-legend">{legend}</div>
-      {"<div class='history-stats'>" + stats_line + "</div>" if stats_line else ""}
-    </section>"""
+    <details class="foldout">
+      <summary class="foldout-summary">📊 Prediction history <span class="foldout-hint">(last {days}d)</span></summary>
+      <div class="foldout-body">
+        {stat_cards}
+        {chart}
+      </div>
+    </details>"""

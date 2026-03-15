@@ -18,14 +18,52 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 
 from utils.config import load_config
 from utils.db import DEFAULT_SQLITE
-from render.charts import prob_trend_svg, wind_svg
-from render.data import score_to_hex, window_stats, expected_wind_chips, stats_html
+from render.charts import wind_svg, history_chart_svg  # noqa: F401 (history_chart_svg used via history_html)
+from render.data import score_to_hex, window_stats, expected_wind_chips, stats_html, history_html
+
+
+def _methodology_html(cfg: dict) -> str:
+    """Static foldout explaining the numbers and methodology."""
+    sailing = cfg.get("sailing", {})
+    ws   = sailing.get("window_start", "08:00")
+    we   = sailing.get("window_end", "16:00")
+    wmin = sailing.get("wind_speed_min", 2)
+    wmax = sailing.get("wind_speed_max", 10)
+    thr  = cfg.get("prediction", {}).get("min_good_fraction", 0.3)
+    return f"""
+    <details class="foldout">
+      <summary class="foldout-summary">ℹ️ About this forecast</summary>
+      <div class="foldout-body">
+        <dl class="about-dl">
+          <div class="about-row">
+            <dt>Condition score (0–100)</dt>
+            <dd>Fraction of hourly readings within the sailing window that fall in the target wind range ({wmin}–{wmax} kn) with consistent direction. The gradient bar maps score to quality colour.</dd>
+          </div>
+          <div class="about-row">
+            <dt>Probability (p=X%)</dt>
+            <dd>Random Forest model confidence that the sailing window ({ws}–{we}) will have ≥{int(thr * 100)}% of hours with good conditions. Days above this threshold are classified as "good".</dd>
+          </div>
+          <div class="about-row">
+            <dt>Extended forecasts (+1d, +2d)</dt>
+            <dd>Days beyond the direct ML target are scaled by ×0.82 and ×0.64 to reflect increasing uncertainty. Display-only — not included in the accuracy history.</dd>
+          </div>
+          <div class="about-row">
+            <dt>Data sources</dt>
+            <dd>Observed wind from a local Ecowitt weather station. Wind, gust, cloud cover, and boundary-layer height forecasts from Open-Meteo NWP (no API key required).</dd>
+          </div>
+          <div class="about-row">
+            <dt>History chart</dt>
+            <dd>Cyan dashed = model probability each day. Green solid = actual fraction of the sailing window with good wind (recorded after the day passes). The dashed threshold line marks the {int(thr * 100)}% good-day cutoff.</dd>
+          </div>
+        </dl>
+      </div>
+    </details>"""
 
 
 def build_html(
     predictions: list[dict],
     cfg: dict,
-    db_path: str | None = None,  # reserved for future history section
+    db_path: str | None = None,
 ) -> str:
     sailing      = cfg.get("sailing", {})
     window_start = sailing.get("window_start", "08:00")
@@ -88,7 +126,6 @@ def build_html(
         day_label = dt.strftime("%A, %-d %B %Y").upper()
 
         exp_chips = expected_wind_chips(d["headline"], cfg)
-        sparkline = prob_trend_svg(d["snaps"], size=(90, 30))
 
         hero_html = f"""
     <div class="hero-card">
@@ -100,7 +137,6 @@ def build_html(
         </div>
         <div class="hero-right">
           <div class="hero-window">{window_start}–{window_end}</div>
-          <div class="hero-sparkline">{sparkline}</div>
         </div>
       </div>
       <div class="cond-section">
@@ -169,11 +205,13 @@ def build_html(
         if past_items:
             past_row_html = f"""
     <div class="past-row">
-      <span class="past-label">Past</span>
       <div class="past-days">{past_items}</div>
     </div>"""
 
         cards_html = hero_html + compact_grid_html + past_row_html
+
+    history_foldout    = history_html(db_path or DEFAULT_SQLITE)
+    methodology_foldout = _methodology_html(cfg)
 
     generated = datetime.now().strftime("%-d %B %Y, %H:%M")
 
@@ -398,9 +436,7 @@ def build_html(
     .hero-window {{
       color: var(--c-muted);
       font-size: 10px;
-      margin-bottom: 6px;
     }}
-    .hero-sparkline svg {{ display: block; }}
 
     /* ── Compact grid ── */
     .compact-grid {{
@@ -461,6 +497,98 @@ def build_html(
     .past-day  {{ display: flex; align-items: center; gap: 4px; color: var(--c-dim); font-size: 11px; }}
     .past-score {{ font-weight: 600; }}
 
+    /* ── Foldouts ── */
+    .foldout {{
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 8px;
+      overflow: hidden;
+    }}
+    .foldout-summary {{
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--c-text);
+      list-style: none;
+      user-select: none;
+    }}
+    .foldout-summary::-webkit-details-marker {{ display: none; }}
+    .foldout-summary::after {{
+      content: "›";
+      margin-left: auto;
+      font-size: 1rem;
+      color: var(--c-dim);
+      transition: transform .2s;
+    }}
+    details[open] .foldout-summary::after {{ transform: rotate(90deg); }}
+    .foldout-hint {{
+      color: var(--c-dim);
+      font-weight: 400;
+      font-size: 0.75rem;
+    }}
+    .foldout-body {{
+      padding: 8px 14px 12px;
+      border-top: 1px solid var(--c-border);
+    }}
+
+    /* ── History stat cards ── */
+    .hist-stats {{
+      display: flex;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }}
+    .hist-stat {{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 8px 16px;
+      min-width: 72px;
+    }}
+    .hist-stat-val {{
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--c-accent);
+      line-height: 1;
+    }}
+    .hist-stat-lbl {{
+      font-size: 0.62rem;
+      color: var(--c-muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-top: 4px;
+      text-align: center;
+    }}
+
+    /* ── About / methodology ── */
+    .about-dl {{ display: flex; flex-direction: column; gap: 10px; }}
+    .about-row {{ display: grid; grid-template-columns: 9rem 1fr; gap: 8px; align-items: baseline; }}
+    .about-row dt {{
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--c-muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }}
+    .about-row dd {{
+      font-size: 0.8rem;
+      color: var(--c-text);
+      line-height: 1.55;
+      opacity: 0.85;
+    }}
+    @media (max-width: 480px) {{
+      .about-row {{ grid-template-columns: 1fr; gap: 2px; }}
+    }}
+
     /* ── Footer ── */
     .page-footer {{
       margin-top: 2.5rem;
@@ -478,6 +606,9 @@ def build_html(
     </header>
 
     {cards_html}
+
+    {history_foldout}
+    {methodology_foldout}
 
     <footer class="page-footer">
       <p>Sailing window {window_start}–{window_end} · Wind {wind_min}–{wind_max} kn · Good-day threshold {int(threshold*100)}%</p>
@@ -506,7 +637,7 @@ def main() -> None:
         predictions = load_forecast_snapshots()
 
     cfg = load_config(args.config)
-    html = build_html(predictions, cfg)
+    html = build_html(predictions, cfg, db_path=DEFAULT_SQLITE)
 
     with open(args.out, "w") as f:
         f.write(html)

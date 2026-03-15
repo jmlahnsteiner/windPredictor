@@ -324,3 +324,128 @@ def wind_svg(window_wind: dict, cfg: dict) -> str:
 
     p.append("</svg>")
     return "\n".join(p)
+
+
+def history_chart_svg(rows: list[dict], threshold: float = 0.3) -> str:
+    """
+    Time-series chart: predicted probability vs actual wind quality over past days.
+    rows: list of dicts with keys:
+        predicting_date (str YYYY-MM-DD), probability (float),
+        actual_frac (float | None — None means outcome not yet known).
+    Returns SVG string, or '' if fewer than 2 rows.
+    """
+    rows = sorted(rows, key=lambda r: r["predicting_date"])
+    n = len(rows)
+    if n < 2:
+        return ""
+
+    VW, VH = 620, 130
+    PAD_L, PAD_R, PAD_T, PAD_B = 36, 72, 14, 22
+    cw = VW - PAD_L - PAD_R
+    ch = VH - PAD_T - PAD_B
+
+    def tx(i: int) -> float:
+        return PAD_L + (i / max(n - 1, 1)) * cw
+
+    def ty(v: float) -> float:
+        return PAD_T + ch * (1.0 - min(max(v, 0.0), 1.0))
+
+    out = [
+        f'<svg viewBox="0 0 {VW} {VH}" '
+        f'style="width:100%;height:{VH}px;display:block;overflow:visible" '
+        f'aria-hidden="true">'
+    ]
+
+    # Horizontal grid + y-axis labels at 0%, threshold, 100%
+    for v, label in [(0.0, "0%"), (threshold, f"{int(threshold * 100)}%"), (1.0, "100%")]:
+        gy = ty(v)
+        dash = 'stroke-dasharray="4,2"' if v == threshold else ""
+        out.append(
+            f'<line x1="{PAD_L}" y1="{gy:.1f}" x2="{VW - PAD_R}" y2="{gy:.1f}" '
+            f'stroke="#2d3555" stroke-width="0.75" {dash}/>'
+        )
+        out.append(
+            f'<text x="{PAD_L - 4}" y="{gy + 3:.1f}" font-size="7" text-anchor="end" '
+            f'fill="#4b5675" font-family="sans-serif">{label}</text>'
+        )
+    # Threshold label on the right
+    out.append(
+        f'<text x="{VW - PAD_R + 4}" y="{ty(threshold) + 3:.1f}" font-size="6.5" '
+        f'fill="#4b5675" font-family="sans-serif">threshold</text>'
+    )
+
+    # Actual fraction line (green) — only points with known outcomes
+    actual_coords = [
+        (tx(i), ty(float(r["actual_frac"])))
+        for i, r in enumerate(rows)
+        if r.get("actual_frac") is not None
+    ]
+    if len(actual_coords) >= 2:
+        pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in actual_coords)
+        out.append(
+            f'<polyline points="{pts}" fill="none" stroke="#16a34a" '
+            f'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/>'
+        )
+    for i, r in enumerate(rows):
+        af = r.get("actual_frac")
+        if af is not None:
+            c = "#22c55e" if float(af) >= threshold else "#64748b"
+            out.append(
+                f'<circle cx="{tx(i):.1f}" cy="{ty(float(af)):.1f}" r="2.5" '
+                f'fill="{c}" opacity="0.85"/>'
+            )
+
+    # Predicted probability line (cyan, dashed)
+    pred_pts = " ".join(
+        f"{tx(i):.1f},{ty(float(r['probability'])):.1f}" for i, r in enumerate(rows)
+    )
+    out.append(
+        f'<polyline points="{pred_pts}" fill="none" stroke="#22d3ee" '
+        f'stroke-width="1.5" stroke-dasharray="5,2" stroke-linecap="round" opacity="0.8"/>'
+    )
+    for i, r in enumerate(rows):
+        py = ty(float(r["probability"]))
+        out.append(
+            f'<circle cx="{tx(i):.1f}" cy="{py:.1f}" r="2" '
+            f'fill="#22d3ee" opacity="0.65"/>'
+        )
+
+    # X-axis ticks + sparse date labels (up to ~6)
+    step = max(1, n // 5)
+    shown_idx = set(range(0, n, step)) | {n - 1}
+    for i, r in enumerate(rows):
+        x = tx(i)
+        out.append(
+            f'<line x1="{x:.1f}" y1="{VH - PAD_B:.1f}" x2="{x:.1f}" y2="{VH - PAD_B + 3:.1f}" '
+            f'stroke="#2d3555" stroke-width="0.5"/>'
+        )
+        if i in shown_idx:
+            dt_obj = datetime.strptime(r["predicting_date"], "%Y-%m-%d")
+            label = dt_obj.strftime("%-d %b")
+            anchor = "start" if i == 0 else ("end" if i == n - 1 else "middle")
+            out.append(
+                f'<text x="{x:.1f}" y="{VH - 2}" font-size="7" text-anchor="{anchor}" '
+                f'fill="#4b5675" font-family="sans-serif">{label}</text>'
+            )
+
+    # Legend (top-left inside chart area)
+    lx, ly = PAD_L + 6, PAD_T + 9
+    out.append(
+        f'<line x1="{lx}" y1="{ly}" x2="{lx + 14}" y2="{ly}" '
+        f'stroke="#22d3ee" stroke-width="1.5" stroke-dasharray="5,2"/>'
+    )
+    out.append(
+        f'<text x="{lx + 17}" y="{ly + 3}" font-size="6.5" fill="#94a3b8" '
+        f'font-family="sans-serif">Predicted</text>'
+    )
+    out.append(
+        f'<line x1="{lx + 68}" y1="{ly}" x2="{lx + 82}" y2="{ly}" '
+        f'stroke="#16a34a" stroke-width="1.8"/>'
+    )
+    out.append(
+        f'<text x="{lx + 85}" y="{ly + 3}" font-size="6.5" fill="#94a3b8" '
+        f'font-family="sans-serif">Actual</text>'
+    )
+
+    out.append("</svg>")
+    return "\n".join(out)
