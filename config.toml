@@ -29,9 +29,14 @@ n_estimators    = 300
 max_depth       = 6
 min_samples_leaf = 2
 
-# [location]
+[location]
 # Coordinates for NWP forecast enrichment via Open-Meteo (no API key needed).
-# Uncomment the three lines below and fill in your location to enable.
 name = "Traunsee"
 lat  = 47.8071    # decimal degrees, positive = North
 lon  = 13.7790    # decimal degrees, positive = East
+
+[ecowitt]
+# Ecowitt weather station credentials.
+# Override with ECOWITT_DEVICE_ID / ECOWITT_AUTHORIZE env vars (or .env).
+device_id = "cHF5MGpPMzZFeDEvbFAvL2J6QjBWdz09"
+authorize = "E6K45F"
