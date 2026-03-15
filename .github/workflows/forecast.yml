@@ -2,7 +2,7 @@ name: Wind Forecast
 
 on:
   schedule:
-    - cron: '0  4 * * *'  # 05:00 CET  / 06:00 CEST
+    - cron: '0 4 * * *'   # 05:00 CET  / 06:00 CEST
     - cron: '0  6 * * *'  # 07:00 CET  / 08:00 CEST
     - cron: '0  9 * * *'  # 10:00 CET  / 11:00 CEST
     - cron: '0 12 * * *'  # 13:00 CET  / 14:00 CEST
@@ -76,7 +76,7 @@ jobs:
         run: python model/predict.py
 
       - name: Send good-day notification
-        if: "github.event.schedule == '0  4 * * *'"
+        if: "github.event.schedule == '0 4 * * *'"
         run: python notify/notify.py
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
