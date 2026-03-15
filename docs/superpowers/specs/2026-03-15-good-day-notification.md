@@ -11,17 +11,17 @@ Send an email automatically when the morning forecast predicts a good sailing da
 
 ## Trigger
 
-The 04:00 UTC GitHub Actions job only (06:00 CET / 07:00 CEST). At this hour `_target_date()` returns **today** (sailing window has not yet closed), so the prediction covers the upcoming window.
+The 04:00 UTC GitHub Actions job only (05:00 CET / 06:00 CEST). At this hour `_target_date()` returns **today** (sailing window has not yet closed), so the prediction covers the upcoming window.
 
 No email is sent on any other run.
 
 ---
 
-## Condition
+## Data Source
 
-Read the most recent prediction row for today's date from Supabase. If `good = 1`, send the email. Otherwise exit 0 silently.
+Read from `predictions.json` (the rolling forecast file committed to the repo by the predict step, which runs before this step in the same job). This file contains fully-enriched entries including `nwp_forecast`.
 
-"Most recent" = highest `snapshot_dt` for `predicting_date = today`.
+No separate Supabase query is needed for the notification.
 
 ---
 
@@ -45,7 +45,8 @@ Sailing window: {window_start}–{window_end}
 Full forecast: https://jmlahnsteiner.github.io/windPredictor/
 ```
 
-NWP wind values (`mean_wind_kn`, `max_gust_kn`) come from the `nwp_forecast` JSON column of the most recent prediction row. If unavailable, those lines are omitted.
+- `condition_label`: the `condition_label` field from the prediction entry (e.g. "Good", "Excellent"). Falls back to "Good" if absent.
+- `mean_wind` / `max_gust`: from `nwp_forecast.mean_wind_kn` / `nwp_forecast.max_gust_kn` in the prediction entry. If the `nwp_forecast` key is absent or the values are None, those lines are omitted from the body.
 
 ---
 
@@ -53,7 +54,7 @@ NWP wind values (`mean_wind_kn`, `max_gust_kn`) come from the `nwp_forecast` JSO
 
 | File | Change |
 |------|--------|
-| `notify/notify.py` | New script — query Supabase, send email via Resend if good |
+| `notify/notify.py` | New script — read predictions.json, send email via Resend if good |
 | `notify/__init__.py` | New (empty) |
 | `.github/workflows/forecast.yml` | Add `Send good-day notification` step to 04:00 UTC job |
 | `requirements.txt` | Add `resend` |
@@ -64,17 +65,18 @@ NWP wind values (`mean_wind_kn`, `max_gust_kn`) come from the `nwp_forecast` JSO
 
 ```
 1. Load .env (for local testing)
-2. Connect to Supabase via SUPABASE_DB_URL (same utils/db path as the rest of the codebase)
-3. Query: SELECT probability, good, snapshot_dt, nwp_forecast
-          FROM predictions
-          WHERE predicting_date = today
-          ORDER BY snapshot_dt DESC
-          LIMIT 1
-4. If no row or good != 1 → exit 0
-5. Parse nwp_forecast JSON for mean_wind_kn, max_gust_kn
-6. Load config.toml for window_start, window_end
-7. POST to Resend API with plain-text email body
-8. Print confirmation; exit 0 on success, exit 1 on send failure
+2. Load config.toml for window_start, window_end
+3. Load predictions.json (path relative to repo root, same as render_html.py uses)
+4. Filter entries where predicting_date == today
+5. If no entries → exit 0 silently
+6. Pick entry with highest snapshot_dt
+7. If good != True (bool) or good != 1 (int) → exit 0 silently
+8. Extract: probability, condition_label, nwp_forecast (may be absent)
+9. Build plain-text email body; omit wind lines if nwp_forecast unavailable
+10. Check RESEND_API_KEY is set; if missing → print error, exit 1
+11. Check NOTIFY_EMAIL is set; if missing → print error, exit 1
+12. POST to Resend API
+13. Print confirmation; exit 0 on success, exit 1 on API error
 ```
 
 ---
