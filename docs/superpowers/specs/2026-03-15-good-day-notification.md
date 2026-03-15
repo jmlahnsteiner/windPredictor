@@ -88,7 +88,7 @@ Added to the **shared** `forecast` job in `forecast.yml`, **after** the predict 
 
 ```yaml
 - name: Send good-day notification
-  if: "github.event.schedule == '0 4 * * *'"
+  if: "github.event.schedule == '0  4 * * *'"
   run: python notify/notify.py
   env:
     RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
