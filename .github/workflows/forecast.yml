@@ -1,8 +1,6 @@
 name: Wind Forecast
 
 on:
-  # Six daily runs at CET times (UTC+1 in winter, UTC+2 in summer).
-  # Cron times below target CET (UTC+1); in CEST (summer) they fire 1 h later locally.
   schedule:
     - cron: '0  4 * * *'  # 05:00 CET  / 06:00 CEST
     - cron: '0  6 * * *'  # 07:00 CET  / 08:00 CEST
@@ -11,20 +9,20 @@ on:
     - cron: '0 17 * * *'  # 18:00 CET  / 19:00 CEST
     - cron: '0 21 * * *'  # 22:00 CET  / 23:00 CEST
 
-  workflow_dispatch:        # also triggerable manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
   forecast:
     runs-on: ubuntu-latest
+    environment: github-pages
 
     permissions:
-      contents: write       # needed to push index.html back to the repo
+      pages:     write
+      id-token:  write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -35,13 +33,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # Restore model weights from the previous run.
-      # The run_id key ensures a fresh save each time; restore-keys picks
-      # the most recent available cache when no exact match exists.
-      # data.parquet lives in the repo (committed each run).
-      # predictions history lives in Supabase (SUPABASE_DB_URL secret).
-      # Only the model weights need caching — they change rarely (retrain only
-      # when absent) and are too large to commit on every deploy.
       - name: Restore model cache
         uses: actions/cache@v4
         with:
@@ -50,9 +41,10 @@ jobs:
           restore-keys: wind-model-
 
       - name: Download weather data
-        # data.parquet already contains full history (committed to repo).
-        # Only download recent days + today (always re-fetched for latest readings).
-        # On first run (no model weights) pull 90 days so training has enough history.
+        env:
+          SUPABASE_DB_URL:   ${{ secrets.SUPABASE_DB_URL }}
+          ECOWITT_DEVICE_ID: ${{ secrets.ECOWITT_DEVICE_ID }}
+          ECOWITT_AUTHORIZE: ${{ secrets.ECOWITT_AUTHORIZE }}
         run: |
           TODAY=$(date -u '+%Y-%m-%d')
           if [ -f model/weights.joblib ]; then
@@ -62,10 +54,14 @@ jobs:
           fi
           python input/scraper.py "$START" "$TODAY"
 
-      - name: Stitch xlsx → parquet
+      - name: Stitch xlsx → database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: python input/stitcher.py
 
       - name: Train model (only when weights are absent)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           if [ ! -f model/weights.joblib ]; then
             echo "No weights found — training from scratch."
@@ -84,15 +80,10 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: python render_html.py
 
-      - name: Commit and push index.html
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html
-          [ -f data.parquet ] && git add data.parquet || true
-          if git diff --cached --quiet; then
-            echo "Nothing changed — skipping commit."
-          else
-            git commit -m "forecast: update $(date -u '+%d %b %Y %H:%M UTC')"
-            git push
-          fi
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'     # workspace root; Pages serves index.html
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
