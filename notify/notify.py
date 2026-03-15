@@ -1,12 +1,7 @@
 """notify/notify.py — Good-day email notification."""
 from __future__ import annotations
 
-import json
 import os
-import sys
-import tomllib
-from datetime import date, datetime
-from pathlib import Path
 
 import resend  # top-level import — makes monkeypatching reliable in tests
 
