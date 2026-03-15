@@ -3,10 +3,8 @@ __pycache__
 
 *.csv
 *.parquet
-!data.parquet
 *.xlsx
 *.json
-!predictions.json
 *.har
 *.png
 
