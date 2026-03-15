@@ -87,3 +87,79 @@ def test_build_body_partial_nwp_omits_wind_line():
     }
     body = build_body(entry, "08:00", "16:00")
     assert "avg" not in body
+
+
+import resend
+from notify.notify import main, _format_subject_date
+
+
+def test_format_subject_date_no_leading_zero():
+    # Single-digit day must have no leading zero
+    result = _format_subject_date("2026-03-05")
+    assert result.startswith("Thursday")
+    assert "5 March 2026" in result
+    assert "05" not in result
+
+
+def test_main_exits_1_missing_resend_key(monkeypatch, capsys):
+    monkeypatch.delenv("RESEND_API_KEY", raising=False)
+    monkeypatch.setenv("NOTIFY_EMAIL", "test@example.com")
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 1
+    assert "RESEND_API_KEY" in capsys.readouterr().out
+
+
+def test_main_exits_1_missing_notify_email(monkeypatch, capsys):
+    monkeypatch.setenv("RESEND_API_KEY", "key")
+    monkeypatch.delenv("NOTIFY_EMAIL", raising=False)
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 1
+    assert "NOTIFY_EMAIL" in capsys.readouterr().out
+
+
+def test_main_exits_0_silently_when_not_good(monkeypatch, tmp_path):
+    """No email sent when prediction is not good."""
+    monkeypatch.setenv("RESEND_API_KEY", "key")
+    monkeypatch.setenv("NOTIFY_EMAIL", "test@example.com")
+    today = date.today().isoformat()
+    preds = [{"predicting_date": today, "snapshot": today + "T04:00:00",
+               "good": False, "probability": 0.1}]
+    (tmp_path / "predictions.json").write_text(json.dumps(preds))
+    (tmp_path / "config.toml").write_text(
+        '[sailing]\nwindow_start = "08:00"\nwindow_end = "16:00"\n'
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(resend.Emails, "send", lambda p: pytest.fail("send called unexpectedly"))
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+
+
+def test_main_sends_email_when_good(monkeypatch, tmp_path):
+    """Email is sent when prediction is good."""
+    monkeypatch.setenv("RESEND_API_KEY", "key")
+    monkeypatch.setenv("NOTIFY_EMAIL", "test@example.com")
+    today = date.today().isoformat()
+    preds = [{"predicting_date": today, "snapshot": today + "T04:00:00",
+               "good": True, "probability": 0.75, "condition_label": "Good"}]
+    (tmp_path / "predictions.json").write_text(json.dumps(preds))
+    (tmp_path / "config.toml").write_text(
+        '[sailing]\nwindow_start = "08:00"\nwindow_end = "16:00"\n'
+    )
+    monkeypatch.chdir(tmp_path)
+
+    sent = {}
+    def fake_send(params):
+        sent.update(params)
+        return {"id": "test-id"}
+
+    monkeypatch.setattr(resend.Emails, "send", fake_send)
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+    assert sent["to"] == ["test@example.com"]
+    assert "⛵" in sent["subject"]
+    assert "75%" in sent["text"]
