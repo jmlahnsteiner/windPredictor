@@ -1,0 +1,116 @@
+"""notify/notify.py — Good-day email notification."""
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tomllib
+from datetime import date, datetime
+from pathlib import Path
+
+import resend  # top-level import — makes monkeypatching reliable in tests
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+
+def load_today_entry(predictions: list[dict], today: str) -> dict | None:
+    """Return the latest-snapshot prediction entry for *today*, or None."""
+    todays = [e for e in predictions if e.get("predicting_date") == today]
+    if not todays:
+        return None
+    return max(todays, key=lambda e: e.get("snapshot", ""))
+
+
+def build_body(entry: dict, window_start: str, window_end: str) -> str:
+    """Build the plain-text email body for a good-day notification."""
+    pct = round(float(entry.get("probability", 0)) * 100)
+    label = entry.get("condition_label") or "Good"
+
+    nwp = entry.get("nwp_forecast") or {}
+    mean_wind = nwp.get("mean_wind_kn")
+    max_gust = nwp.get("max_gust_kn")
+    wind_line = (
+        f"Expected wind: avg {mean_wind} kn · gust {max_gust} kn\n"
+        if mean_wind is not None and max_gust is not None
+        else ""
+    )
+
+    return (
+        f"Good sailing conditions forecast for today's window "
+        f"({window_start}–{window_end}).\n"
+        f"\n"
+        f"Probability:  {pct}%  ({label})\n"
+        f"{wind_line}"
+        f"Sailing window: {window_start}–{window_end}\n"
+        f"\n"
+        f"Full forecast: https://jmlahnsteiner.github.io/windPredictor/\n"
+    )
+
+
+def _format_subject_date(today: str) -> str:
+    """Format today's date as 'Monday, 15 March 2026' (no leading zero, cross-platform)."""
+    dt = datetime.strptime(today, "%Y-%m-%d")
+    return f"{dt.strftime('%A')}, {dt.day} {dt.strftime('%B %Y')}"
+
+
+def main() -> None:
+    # 1-2. Fail fast: check required env vars before any file I/O
+    api_key = os.environ.get("RESEND_API_KEY")
+    if not api_key:
+        print("ERROR: RESEND_API_KEY environment variable is not set.")
+        sys.exit(1)
+
+    notify_email = os.environ.get("NOTIFY_EMAIL")
+    if not notify_email:
+        print("ERROR: NOTIFY_EMAIL environment variable is not set.")
+        sys.exit(1)
+
+    # 3. Load config
+    with open(Path("config.toml"), "rb") as f:
+        cfg = tomllib.load(f)
+    sailing = cfg.get("sailing", {})
+    window_start = sailing.get("window_start", "08:00")
+    window_end = sailing.get("window_end", "16:00")
+
+    # 4. Load predictions.json
+    with open(Path("predictions.json")) as f:
+        predictions = json.load(f)
+
+    # 5-6. Find today's latest entry
+    today = date.today().isoformat()
+    entry = load_today_entry(predictions, today)
+    if entry is None:
+        sys.exit(0)
+
+    # 7. Check if good
+    if not entry.get("good"):
+        sys.exit(0)
+
+    # 8-9. Build email
+    subject = f"⛵ Good sailing today — {_format_subject_date(today)}"
+    body = build_body(entry, window_start, window_end)
+
+    # 10. Send via Resend
+    resend.api_key = api_key
+    try:
+        resend.Emails.send({
+            "from": "WindPredictor <onboarding@resend.dev>",
+            "to": [notify_email],
+            "subject": subject,
+            "text": body,
+        })
+    except Exception as exc:
+        print(f"ERROR: Resend API call failed: {exc}")
+        sys.exit(1)
+
+    # 11. Confirm
+    print(f"Notification sent to {notify_email}: {subject}")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
