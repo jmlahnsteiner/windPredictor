@@ -84,8 +84,8 @@ def upsert_readings(df: pd.DataFrame, db_path: str = DEFAULT_SQLITE) -> int:
             vals.append(float(v) if v is not None and pd.notna(v) else None)
         rows.append(tuple(vals))
 
+    con, bk = get_connection(db_path)
     try:
-        con, bk = get_connection(db_path)
         _ensure_schema(con, bk)
         ph = placeholder(bk)
 
