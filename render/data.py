@@ -50,11 +50,12 @@ def window_stats(window_wind: dict, cfg: dict) -> dict:
     }
 
 
-def expected_wind_chips(headline: dict, cfg: dict) -> str:
+def expected_wind_chips(headline: dict, cfg: dict, compact: bool = False) -> str:
     """
     Return chip HTML for expected average wind, gusts, and direction consistency.
     Prefers observed window data (past days) over NWP (future days).
     Returns '' when neither source is available.
+    When compact=True, the direction chip is omitted for space-efficient layouts.
     (Previously _expected_wind_chips in render_html.py)
     """
     obs = window_stats(headline.get("window_wind", {}), cfg)
@@ -65,14 +66,14 @@ def expected_wind_chips(headline: dict, cfg: dict) -> str:
         chips.append(f'<span class="meta-chip exp-chip">💨 avg {obs["mean_kn"]} kn</span>')
         if obs.get("max_gust_kn") is not None:
             chips.append(f'<span class="meta-chip exp-chip">↑ gust {obs["max_gust_kn"]} kn</span>')
-        if obs.get("dir_std_deg") is not None:
+        if not compact and obs.get("dir_std_deg") is not None:
             chips.append(f'<span class="meta-chip exp-chip">〜 dir ±{obs["dir_std_deg"]}°</span>')
     elif nwp:
         if nwp.get("mean_wind_kn") is not None:
             chips.append(f'<span class="meta-chip exp-chip">💨 avg {nwp["mean_wind_kn"]} kn</span>')
         if nwp.get("max_gust_kn") is not None:
             chips.append(f'<span class="meta-chip exp-chip">↑ gust {nwp["max_gust_kn"]} kn</span>')
-        if nwp.get("dir_consistency_deg") is not None:
+        if not compact and nwp.get("dir_consistency_deg") is not None:
             chips.append(f'<span class="meta-chip exp-chip">〜 dir ±{nwp["dir_consistency_deg"]}°</span>')
 
     return "".join(chips)

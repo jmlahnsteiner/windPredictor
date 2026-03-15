@@ -3,10 +3,12 @@ import math
 from datetime import datetime
 
 
-def prob_trend_svg(snaps: list[dict]) -> str:
+def prob_trend_svg(snaps: list[dict], size: tuple[int, int] | None = None) -> str:
     """
     Compact sparkline showing how sailing probability evolved across snapshots.
     Returns '' when fewer than 2 snapshots exist.
+    When size=(w, h) is provided, emits width/height attributes on the <svg> element
+    instead of an inline style (useful for fixed-size inline hero sparklines).
     (Previously _prob_trend_svg in render_html.py)
     """
     sorted_snaps = sorted(snaps, key=lambda s: s["snapshot"])
@@ -43,11 +45,17 @@ def prob_trend_svg(snaps: list[dict]) -> str:
         if p >= thr * 0.6:  return "#d97706"
         return "#dc2626"
 
-    out = [
-        f'<svg viewBox="0 0 {VW} {VH}" '
-        f'style="width:100%;height:{VH}px;display:block;margin-bottom:.5rem" '
-        f'class="dropout-svg" aria-hidden="true">'
-    ]
+    if size is not None:
+        w, h = size
+        svg_attrs = f'viewBox="0 0 {VW} {VH}" width="{w}" height="{h}" class="dropout-svg" aria-hidden="true"'
+    else:
+        svg_attrs = (
+            f'viewBox="0 0 {VW} {VH}" '
+            f'style="width:100%;height:{VH}px;display:block;margin-bottom:.5rem" '
+            f'class="dropout-svg" aria-hidden="true"'
+        )
+
+    out = [f'<svg {svg_attrs}>']
 
     out.append(
         f'<text x="{PAD_L - 3}" y="{PAD_T + ch / 2 + 2.5:.1f}" '
@@ -57,12 +65,12 @@ def prob_trend_svg(snaps: list[dict]) -> str:
     hy = ty(thr)
     out.append(
         f'<line x1="{PAD_L}" y1="{hy:.1f}" x2="{VW - PAD_R}" y2="{hy:.1f}" '
-        f'stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>'
+        f'stroke="#94a3b8" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>'
     )
     # Connecting line
     pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in zip(xs, ys))
     out.append(
-        f'<polyline points="{pts}" fill="none" stroke="#16a34a" '
+        f'<polyline points="{pts}" fill="none" stroke="#22d3ee" '
         f'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>'
     )
     # Dots + value labels
