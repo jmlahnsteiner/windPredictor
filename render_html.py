@@ -22,26 +22,11 @@ from render.charts import prob_trend_svg, wind_svg
 from render.data import score_to_hex, window_stats, expected_wind_chips, stats_html
 
 
-def dir_label(degrees: float) -> str:
-    dirs = ["N","NE","E","SE","S","SW","W","NW"]
-    return dirs[round(degrees / 45) % 8]
-
-
-# ── Condition-scale colour palette ──────────────────────────────────────────
-# (text-colour, background, border) keyed by condition label
-_COND_BADGE: dict[str, tuple[str, str, str]] = {
-    "No wind":        ("#94a3b8", "rgba(148,163,184,0.10)", "rgba(148,163,184,0.20)"),
-    "Very light":     ("#7dd3fc", "rgba(125,211,252,0.12)", "rgba(125,211,252,0.25)"),
-    "Marginal":       ("#fbbf24", "rgba(251,191,36,0.12)",  "rgba(251,191,36,0.25)"),
-    "Fair":           ("#86efac", "rgba(134,239,172,0.12)", "rgba(134,239,172,0.25)"),
-    "Good":           ("#22c55e", "rgba(34,197,94,0.12)",   "rgba(34,197,94,0.25)"),
-    "Great":          ("#10b981", "rgba(16,185,129,0.12)",  "rgba(16,185,129,0.25)"),
-    "Excellent":      ("#06b6d4", "rgba(6,182,212,0.12)",   "rgba(6,182,212,0.25)"),
-    "Strong / gusty": ("#fb923c", "rgba(251,146,60,0.12)",  "rgba(251,146,60,0.25)"),
-    "Storm":          ("#f472b6", "rgba(244,114,182,0.12)", "rgba(244,114,182,0.25)"),
-}
-
-def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -> str:
+def build_html(
+    predictions: list[dict],
+    cfg: dict,
+    db_path: str | None = None,  # reserved for future history section
+) -> str:
     sailing      = cfg.get("sailing", {})
     window_start = sailing.get("window_start", "08:00")
     window_end   = sailing.get("window_end",   "16:00")
@@ -250,19 +235,6 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       padding: 3rem 0;
       font-size: 0.95rem;
     }}
-
-    /* ── Day card (kept for backward compat with wind_svg/stats_html output) ── */
-    .day-card {{
-      background: var(--c-surface);
-      border: 1px solid var(--c-border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      margin-bottom: 1.25rem;
-      overflow: hidden;
-    }}
-    .day-card.good {{ border-left: 4px solid var(--c-good); }}
-    .day-card.poor {{ border-left: 4px solid var(--c-border); }}
-    .day-card.past {{ border-left: 4px solid var(--c-border); opacity: 0.72; }}
 
     /* ── Condition score bar ── */
     .cond-section {{
