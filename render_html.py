@@ -132,7 +132,7 @@ def build_html(
       <div class="hero-top">
         <div class="hero-left">
           <div class="hero-date">{day_label}</div>
-          <span class="hero-pct" style="color:{d['score_color']}">{d['pct']}%</span>
+          <span class="hero-pct" style="color:{d['score_color']}">{d['pct']}</span>
           <div class="hero-label">{d['c_icon']} {d['c_label']}</div>
         </div>
         <div class="hero-right">
@@ -150,7 +150,6 @@ def build_html(
             <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
           </div>
         </div>
-        <span class="cond-score-value" style="color:{d['score_color']}">{d['c_score']}</span>
       </div>
       <div class="meta-row">
         {exp_chips}
@@ -170,7 +169,7 @@ def build_html(
             compact_cards += f"""
       <div class="compact-card">
         <div class="compact-date">{short_label}</div>
-        <span class="compact-pct" style="color:{cd['score_color']}">{cd['pct']}%</span>
+        <span class="compact-pct" style="color:{cd['score_color']}">{cd['pct']}</span>
         <div class="compact-label">{cd['c_icon']} {cd['c_label']}</div>
         <div class="cond-section compact-bar">
           <div class="cond-bar-wrap">
@@ -188,27 +187,7 @@ def build_html(
             if compact_cards else ""
         )
 
-        # ── Past days strip (up to 5, newest first) ──────────────────────────
-        past_items = ""
-        for pdate in past_dates[:5]:
-            pd = _card_data(pdate)
-            pdt = datetime.strptime(pdate, "%Y-%m-%d")
-            short = pdt.strftime("%a %-d")
-            past_items += f"""
-      <div class="past-day">
-        <span class="past-date">{short}</span>
-        <span class="past-icon">{pd['c_icon']}</span>
-        <span class="past-score">{pd['c_score']}</span>
-      </div>"""
-
-        past_row_html = ""
-        if past_items:
-            past_row_html = f"""
-    <div class="past-row">
-      <div class="past-days">{past_items}</div>
-    </div>"""
-
-        cards_html = hero_html + compact_grid_html + past_row_html
+        cards_html = hero_html + compact_grid_html
 
     history_foldout    = history_html(db_path or DEFAULT_SQLITE)
     methodology_foldout = _methodology_html(cfg)
