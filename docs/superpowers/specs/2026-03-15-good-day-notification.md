@@ -65,16 +65,17 @@ Full forecast: https://jmlahnsteiner.github.io/windPredictor/
 
 ```
 1. Load .env (for local testing)
-2. Load config.toml for window_start, window_end
-3. Load predictions.json (path relative to repo root, same as render_html.py uses)
-4. Filter entries where predicting_date == today
-5. If no entries → exit 0 silently
-6. Pick entry with highest snapshot_dt
-7. If good != True (bool) or good != 1 (int) → exit 0 silently
-8. Extract: probability, condition_label, nwp_forecast (may be absent)
-9. Build plain-text email body; omit wind lines if nwp_forecast unavailable
-10. Check RESEND_API_KEY is set; if missing → print error, exit 1
-11. Check NOTIFY_EMAIL is set; if missing → print error, exit 1
+2. Check RESEND_API_KEY is set; if missing → print error, exit 1
+3. Check NOTIFY_EMAIL is set; if missing → print error, exit 1
+4. Load config.toml for window_start, window_end
+   (values are already human-readable local time strings — no timezone conversion needed)
+5. Load predictions.json (path relative to repo root)
+6. Filter entries where predicting_date == today
+7. If no entries → exit 0 silently
+8. Pick entry with highest "snapshot" field (ISO-8601 string, sorts lexicographically)
+9. If not good (falsy) → exit 0 silently
+10. Extract: probability, condition_label (fallback "Good"), nwp_forecast (may be absent)
+11. Build plain-text email body; omit wind lines if nwp_forecast unavailable
 12. POST to Resend API
 13. Print confirmation; exit 0 on success, exit 1 on API error
 ```
@@ -83,18 +84,18 @@ Full forecast: https://jmlahnsteiner.github.io/windPredictor/
 
 ## Workflow Step
 
-Added to the existing `04 00 * * *` job in `forecast.yml`, **after** the predict step:
+Added to the **shared** `forecast` job in `forecast.yml`, **after** the predict step. The `if:` guard restricts execution to the 04:00 UTC cron only:
 
 ```yaml
 - name: Send good-day notification
+  if: "github.event.schedule == '0 4 * * *'"
   run: python notify/notify.py
   env:
-    SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-    RESEND_API_KEY:  ${{ secrets.RESEND_API_KEY }}
-    NOTIFY_EMAIL:    ${{ secrets.NOTIFY_EMAIL }}
+    RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+    NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
 ```
 
-The step runs unconditionally (no `if:` guard) — `notify.py` itself decides whether to send based on the prediction value.
+The `if:` guard ensures the step is skipped on all five other daily runs. `notify.py` itself also checks `good` before sending, so no email is sent even if the guard were absent and the day is not good.
 
 ---
 
@@ -104,16 +105,16 @@ The step runs unconditionally (no `if:` guard) — `notify.py` itself decides wh
 |--------|----------------|
 | `RESEND_API_KEY` | resend.com → API Keys (free tier: 100 emails/day) |
 | `NOTIFY_EMAIL` | Your email address |
-| `SUPABASE_DB_URL` | Already set |
 
 ---
 
 ## Error Handling
 
 - No prediction row for today → exit 0 (silent, not an error)
-- `good = 0` → exit 0 (silent)
+- Prediction not good (falsy) → exit 0 (silent)
+- Missing `RESEND_API_KEY` → print error, exit 1
+- Missing `NOTIFY_EMAIL` → print error, exit 1
 - Resend API error → print error, exit 1 (workflow step fails visibly in Actions UI)
-- Missing `RESEND_API_KEY` → exit 1 with clear message
 
 ---
 
