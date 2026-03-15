@@ -5,6 +5,11 @@ Usage:
     python scraper.py                          # last 7 days
     python scraper.py 2026-03-01              # single date
     python scraper.py 2026-02-01 2026-03-06   # date range
+
+Credentials are read from (in priority order):
+  1. Environment variables: ECOWITT_DEVICE_ID, ECOWITT_AUTHORIZE
+  2. config.toml [ecowitt] section
+  3. .env file (loaded automatically via utils/config.py)
 """
 
 import os
@@ -14,24 +19,43 @@ from datetime import date, datetime, timedelta
 
 import requests
 
-DEVICE_ID = "cHF5MGpPMzZFeDEvbFAvL2J6QjBWdz09"
-AUTHORIZE = "E6K45F"
-SORT_LIST = "0|1|2|49|4|5|32"
-REFERER = (
-    f"https://www.ecowitt.net/home/share?authorize={AUTHORIZE}"
-    f"&device_id={DEVICE_ID}&units=1,3,7,12,16,24"
-)
-BASE_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
-    ),
-    "Referer": REFERER,
-    "Content-Type": "application/x-www-form-urlencoded",
-}
-
 _HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(_HERE))
+
+from utils.config import load_config
+
+_SORT_LIST = "0|1|2|49|4|5|32"   # station-specific sensor selection, not a credential
+
 DEFAULT_OUTPUT_DIR = os.path.join(_HERE, "downloaded_files")
+
+
+def _credentials() -> tuple[str, str]:
+    """Return (device_id, authorize) from env vars or config.toml."""
+    cfg = load_config()
+    ecowitt = cfg.get("ecowitt", {})
+    device_id = os.environ.get("ECOWITT_DEVICE_ID") or ecowitt.get("device_id", "")
+    authorize = os.environ.get("ECOWITT_AUTHORIZE") or ecowitt.get("authorize", "")
+    if not device_id or not authorize:
+        raise RuntimeError(
+            "Ecowitt credentials not found. Set ECOWITT_DEVICE_ID and "
+            "ECOWITT_AUTHORIZE in .env or config.toml [ecowitt]."
+        )
+    return device_id, authorize
+
+
+def _make_headers(device_id: str, authorize: str) -> dict:
+    referer = (
+        f"https://www.ecowitt.net/home/share?authorize={authorize}"
+        f"&device_id={device_id}&units=1,3,7,12,16,24"
+    )
+    return {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+        ),
+        "Referer": referer,
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
 
 
 def download_date(
@@ -40,37 +64,32 @@ def download_date(
     output_dir: str,
     edate: str | None = None,
 ) -> bool:
-    """
-    Download weather data for a single date (YYYY-MM-DD). Returns True on success.
-    edate: end time as "HH:MM" (default "23:59"); pass current time for today's partial data.
-    """
+    """Download weather data for a single date (YYYY-MM-DD). Returns True on success."""
     edate = edate or "23:59"
+    device_id, authorize = _credentials()
+    headers = _make_headers(device_id, authorize)
 
-    # Step 1: POST to trigger server-side file generation.
-    # The response JSON contains the actual URL of the generated file.
     ts = int(time.time() * 1000)
     resp = session.post(
         f"https://www.ecowitt.net/index/export_excel?time={ts}",
         data={
-            "device_id": DEVICE_ID,
-            "authorize": AUTHORIZE,
+            "device_id": device_id,
+            "authorize": authorize,
             "mode": "0",
             "sdate": f"{date_str} 00:00",
             "edate": f"{date_str} {edate}",
-            "sortList": SORT_LIST,
+            "sortList": _SORT_LIST,
             "hideList": "",
         },
-        headers=BASE_HEADERS,
+        headers=headers,
         timeout=15,
     )
     resp.raise_for_status()
 
-    # Parse the URL from the POST response rather than hardcoding it.
     try:
         data = resp.json()
         xlsx_url = data["url"]
     except Exception:
-        # Fallback: construct URL from date (works for fully-cached older days)
         date_compact = date_str.replace("-", "")
         edate_compact = edate.replace(":", "")
         xlsx_url = (
@@ -78,8 +97,7 @@ def download_date(
             f"Wetterstation%28{date_compact}0000-{date_compact}{edate_compact}%29.xlsx"
         )
 
-    # Step 2: GET the generated xlsx
-    resp = session.get(xlsx_url, headers=BASE_HEADERS, timeout=15)
+    resp = session.get(xlsx_url, headers=headers, timeout=15)
     resp.raise_for_status()
 
     if resp.content[:2] != b"PK":
@@ -103,8 +121,7 @@ def download_range(
 ) -> dict[str, bool]:
     """
     Download one xlsx per day for [start, end] inclusive.
-    Skips dates that already have a file on disk unless they appear in
-    force_dates (e.g. today, to always fetch the latest partial-day data).
+    Skips dates that already have a file unless they appear in force_dates.
     Returns {date_str: success} for every date in the range.
     """
     os.makedirs(output_dir, exist_ok=True)
@@ -151,7 +168,7 @@ if __name__ == "__main__":
         start = end = datetime.strptime(args[0], "%Y-%m-%d").date()
     elif len(args) == 2:
         start = datetime.strptime(args[0], "%Y-%m-%d").date()
-        end = datetime.strptime(args[1], "%Y-%m-%d").date()
+        end   = datetime.strptime(args[1], "%Y-%m-%d").date()
     else:
         print("Usage: python scraper.py [start_date [end_date]]")
         sys.exit(1)
