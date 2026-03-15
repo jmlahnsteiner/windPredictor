@@ -1,7 +1,7 @@
 """
 render_html.py — Generate a self-contained predictions page.
 
-Reads predictions.json (and optionally config.toml) and writes index.html.
+Reads forecast snapshots from DB (or optionally a JSON file) and writes index.html.
 
 Usage:
     python render_html.py
@@ -10,23 +10,16 @@ Usage:
 
 import argparse
 import json
-import math
 import os
-import tomllib
 from collections import defaultdict
 from datetime import datetime
 
-import numpy as np
-
 _HERE = os.path.dirname(os.path.abspath(__file__))
 
-
-def load_config(path: str) -> dict:
-    try:
-        with open(path, "rb") as f:
-            return tomllib.load(f)
-    except FileNotFoundError:
-        return {}
+from utils.config import load_config
+from utils.db import DEFAULT_SQLITE
+from render.charts import prob_trend_svg, wind_svg
+from render.data import score_to_hex, window_stats, expected_wind_chips, stats_html, history_html
 
 
 def dir_label(degrees: float) -> str:
@@ -52,529 +45,6 @@ def _badge_style(label: str) -> str:
     """Inline CSS for a condition-label badge."""
     txt, bg, bd = _COND_BADGE.get(label, ("#475569", "#f8fafc", "#e2e8f0"))
     return f"color:{txt};background:{bg};border:1px solid {bd}"
-
-
-def _score_to_hex(score: int) -> str:
-    """Map a 0-100 condition score to a display hex colour."""
-    if score < 15:   return "#94a3b8"   # slate – no wind
-    if score < 30:   return "#7dd3fc"   # sky   – very light
-    if score < 45:   return "#fbbf24"   # amber – marginal
-    if score < 60:   return "#86efac"   # light-green – fair
-    if score < 75:   return "#22c55e"   # green – good
-    if score < 90:   return "#10b981"   # emerald – great
-    return "#06b6d4"                     # cyan  – excellent
-
-
-def _window_stats(window_wind: dict, cfg: dict) -> dict:
-    """Compute observed stats from window_wind (local station data)."""
-    speeds = window_wind.get("speeds_kn", [])
-    gusts  = window_wind.get("gusts_kn", [])
-    dirs   = window_wind.get("directions_deg", [])
-    if len(speeds) < 3:
-        return {}
-
-    sc       = cfg.get("sailing", {})
-    wind_min = sc.get("wind_speed_min", 2.0)
-    wind_max = sc.get("wind_speed_max", 10.0)
-
-    pct_good = round(sum(1 for s in speeds if wind_min <= s <= wind_max) / len(speeds) * 100)
-
-    dir_std: float | None = None
-    if len(dirs) >= 3:
-        rad = np.radians(dirs)
-        R   = float(np.hypot(np.sin(rad).mean(), np.cos(rad).mean()))
-        dir_std = round(math.degrees(math.sqrt(-2 * math.log(max(R, 1e-9)))), 1)
-
-    valid_gusts = [g for g in gusts if g is not None]
-
-    return {
-        "mean_kn":     round(sum(speeds) / len(speeds), 1),
-        "max_kn":      round(max(speeds), 1),
-        "max_gust_kn": round(max(valid_gusts), 1) if valid_gusts else None,
-        "pct_good":    pct_good,
-        "dir_std_deg": dir_std,
-    }
-
-
-def _expected_wind_chips(headline: dict, cfg: dict) -> str:
-    """
-    Return chip HTML for expected average wind, gusts, and direction consistency.
-    Prefers observed window data (past days) over NWP (future days).
-    Returns '' when neither source is available.
-    """
-    obs = _window_stats(headline.get("window_wind", {}), cfg)
-    nwp = headline.get("nwp_forecast", {})
-    chips = []
-
-    if obs:
-        chips.append(f'<span class="meta-chip exp-chip">💨 avg {obs["mean_kn"]} kn</span>')
-        if obs.get("max_gust_kn") is not None:
-            chips.append(f'<span class="meta-chip exp-chip">↑ gust {obs["max_gust_kn"]} kn</span>')
-        if obs.get("dir_std_deg") is not None:
-            chips.append(f'<span class="meta-chip exp-chip">〜 dir ±{obs["dir_std_deg"]}°</span>')
-    elif nwp:
-        if nwp.get("mean_wind_kn") is not None:
-            chips.append(f'<span class="meta-chip exp-chip">💨 avg {nwp["mean_wind_kn"]} kn</span>')
-        if nwp.get("max_gust_kn") is not None:
-            chips.append(f'<span class="meta-chip exp-chip">↑ gust {nwp["max_gust_kn"]} kn</span>')
-        if nwp.get("dir_consistency_deg") is not None:
-            chips.append(f'<span class="meta-chip exp-chip">〜 dir ±{nwp["dir_consistency_deg"]}°</span>')
-
-    return "".join(chips)
-
-
-def _stats_html(headline: dict, cfg: dict) -> str:
-    """
-    Render secondary stats rows (details not shown in the meta chips).
-    Returns '' when nothing secondary is available.
-    """
-    rows = []
-
-    obs = _window_stats(headline.get("window_wind", {}), cfg)
-    if obs:
-        rows.append(
-            f'<div class="stats-row stats-observed">'
-            f'<span class="stats-label">Observed</span>'
-            f'<span class="stats-chip">{obs["pct_good"]}% in range</span>'
-            f'<span class="stats-chip">max {obs["max_kn"]} kn</span>'
-            f'</div>'
-        )
-
-    nwp = headline.get("nwp_forecast", {})
-    if nwp:
-        cloud_chip = f'<span class="stats-chip">cloud {nwp["cloud_cover_pct"]}%</span>' if nwp.get("cloud_cover_pct") is not None else ""
-        blh_chip   = f'<span class="stats-chip">BLH {nwp["blh_m"]:,} m</span>' if nwp.get("blh_m") is not None else ""
-        if cloud_chip or blh_chip:
-            rows.append(
-                f'<div class="stats-row stats-nwp">'
-                f'<span class="stats-label">NWP</span>'
-                f'{cloud_chip}{blh_chip}'
-                f'</div>'
-            )
-
-    if not rows:
-        return ""
-    return '<div class="stats-block">' + "".join(rows) + "</div>\n"
-
-
-def _prob_trend_svg(snaps: list[dict]) -> str:
-    """
-    Compact sparkline showing how the sailing probability evolved across
-    successive forecast snapshots (earliest → latest).
-    Returns '' when fewer than 2 snapshots exist.
-    """
-    sorted_snaps = sorted(snaps, key=lambda s: s["snapshot"])
-    n = len(sorted_snaps)
-    if n < 2:
-        return ""
-
-    VW, VH  = 360, 38
-    PAD_L   = 52
-    PAD_R   = 8
-    PAD_T   = 4
-    PAD_B   = 14
-    cw      = VW - PAD_L - PAD_R
-    ch      = VH - PAD_T - PAD_B
-
-    times = [datetime.fromisoformat(s["snapshot"]) for s in sorted_snaps]
-    span  = (times[-1] - times[0]).total_seconds() or 1.0
-    probs = [s["probability"] for s in sorted_snaps]
-    thr   = sorted_snaps[-1].get("threshold", 0.3)
-
-    def tx(i):
-        frac = (times[i] - times[0]).total_seconds() / span
-        frac = max(0.02, min(0.98, frac)) if n > 2 else frac
-        return PAD_L + frac * cw
-
-    def ty(p):
-        return PAD_T + ch * (1.0 - p)
-
-    xs = [tx(i) for i in range(n)]
-    ys = [ty(p) for p in probs]
-
-    def dot_color(p):
-        if p >= thr:        return "#16a34a"
-        if p >= thr * 0.6:  return "#d97706"
-        return "#dc2626"
-
-    out = [
-        f'<svg viewBox="0 0 {VW} {VH}" '
-        f'style="width:100%;height:{VH}px;display:block;margin-bottom:.5rem" '
-        f'class="dropout-svg" aria-hidden="true">'
-    ]
-
-    out.append(
-        f'<text x="{PAD_L - 3}" y="{PAD_T + ch / 2 + 2.5:.1f}" '
-        f'font-size="6.5" text-anchor="end" class="do-lbl">Forecast</text>'
-    )
-    # Threshold dashed line
-    hy = ty(thr)
-    out.append(
-        f'<line x1="{PAD_L}" y1="{hy:.1f}" x2="{VW - PAD_R}" y2="{hy:.1f}" '
-        f'stroke="#16a34a" stroke-width="0.75" stroke-dasharray="3,2" opacity="0.4"/>'
-    )
-    # Connecting line
-    pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in zip(xs, ys))
-    out.append(
-        f'<polyline points="{pts}" fill="none" stroke="#16a34a" '
-        f'stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>'
-    )
-    # Dots + value labels
-    for i, (x, y, prob) in enumerate(zip(xs, ys, probs)):
-        c = dot_color(prob)
-        out.append(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" '
-            f'fill="{c}" stroke="white" stroke-width="0.8"/>'
-        )
-        out.append(
-            f'<text x="{x:.1f}" y="{y - 4:.1f}" font-size="6" fill="{c}" '
-            f'text-anchor="middle" font-weight="bold" font-family="sans-serif">'
-            f'{round(prob * 100)}%</text>'
-        )
-    # Time-axis labels
-    y_tick = VH - PAD_B
-    for i, (x, t) in enumerate(zip(xs, times)):
-        anchor = "start" if i == 0 else ("end" if i == n - 1 else "middle")
-        out.append(
-            f'<line x1="{x:.1f}" y1="{y_tick:.1f}" x2="{x:.1f}" '
-            f'y2="{y_tick + 3:.1f}" stroke-width="0.75" class="do-track"/>'
-        )
-        out.append(
-            f'<text x="{x:.1f}" y="{VH - 1}" '
-            f'font-size="6" text-anchor="{anchor}" class="do-lbl">'
-            f'{t.strftime("%H:%M")}</text>'
-        )
-
-    out.append("</svg>")
-    return "\n".join(out)
-
-
-def _wind_svg(window_wind: dict, cfg: dict) -> str:
-    """
-    Two-panel inline SVG:
-      Left:  wind speed time series with rolling mean (window=5 readings ≈ 2.5 h)
-             and 80 % confidence band + individual error bars.
-      Right: wind direction compass rose (frequency by 45° sector).
-    Returns '' when window data is unavailable.
-    """
-    if not window_wind:
-        return ""
-
-    times_str  = window_wind.get("times", [])
-    speeds     = window_wind.get("speeds_kn", [])
-    directions = window_wind.get("directions_deg", [])
-
-    n = len(speeds)
-    if n < 3:
-        return ""
-
-    sc       = cfg.get("sailing", {})
-    wind_min = sc.get("wind_speed_min", 2.0)
-    wind_max = sc.get("wind_speed_max", 10.0)
-
-    # ── Rolling mean + 80 % CI (z = 1.282, centred window of 5 readings) ─────
-    def _rolling(vals, window=5):
-        half = window // 2
-        ms, ss = [], []
-        for i in range(len(vals)):
-            chunk = vals[max(0, i - half): i + half + 1]
-            m = sum(chunk) / len(chunk)
-            ms.append(m)
-            var = (sum((x - m) ** 2 for x in chunk) / max(len(chunk) - 1, 1)
-                   if len(chunk) >= 2 else 0.0)
-            ss.append(var ** 0.5)
-        return ms, ss
-
-    CI_Z     = 1.282   # 80 % CI
-    CI_LABEL = "80 % CI"
-    means, stds = _rolling(speeds)
-
-    # ── Layout ────────────────────────────────────────────────────────────────
-    VW, VH = 360, 220
-    SPLIT  = 230          # left / right panel boundary
-
-    LP_L, LP_R = 28, 6
-    LP_T, LP_B = 16, 22   # LP_T: panel title; LP_B: time-axis labels
-    cw = SPLIT - LP_L - LP_R
-    ch = VH - LP_T - LP_B
-
-    # Y scale: include CI headroom
-    y_top_ws = max(
-        max(m + CI_Z * s for m, s in zip(means, stds)) * 1.08,
-        wind_max + 3,
-    )
-
-    def wx(i):
-        return LP_L + (i / (n - 1)) * cw
-
-    def wy(v):
-        raw = LP_T + ch * (1.0 - v / y_top_ws)
-        return max(LP_T, min(LP_T + ch, raw))   # clamp to chart area
-
-    # Right panel (compass rose)
-    RP_CX  = SPLIT + (VW - SPLIT) / 2
-    RP_CY  = VH / 2 + 6
-    ROSE_R = min((VW - SPLIT) / 2 - 22, (VH - 36) / 2)   # ≈ 44 px
-
-    # ── Direction binning (8 × 45° sectors) ───────────────────────────────────
-    sector_labels = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-    dir_counts    = [0] * 8
-    for d in directions:
-        dir_counts[int((d + 22.5) / 45) % 8] += 1
-    max_count = max(dir_counts) if any(dir_counts) else 1
-
-    # ── SVG ───────────────────────────────────────────────────────────────────
-    p = [
-        f'<svg viewBox="0 0 {VW} {VH}" '
-        f'style="width:100%;max-height:{VH}px;display:block;margin-bottom:.75rem" '
-        f'class="wind-svg" aria-hidden="true">'
-    ]
-
-    # ══ Left panel: wind speed ════════════════════════════════════════════════
-
-    # Panel title
-    p.append(
-        f'<text x="{LP_L + cw / 2:.1f}" y="11" '
-        f'font-size="7" text-anchor="middle" class="wv-lbl">Wind speed (kn)</text>'
-    )
-
-    # Good-range band (green fill)
-    p.append(
-        f'<rect x="{LP_L}" y="{wy(wind_max):.1f}" width="{cw}" '
-        f'height="{wy(wind_min) - wy(wind_max):.1f}" fill="#16a34a" fill-opacity="0.10"/>'
-    )
-
-    # Horizontal grid lines + y-axis labels at 0, wind_min, wind_max
-    for v in [0, wind_min, wind_max]:
-        gy = wy(v)
-        p.append(
-            f'<line x1="{LP_L}" y1="{gy:.1f}" x2="{LP_L + cw}" y2="{gy:.1f}" '
-            f'stroke-width="0.5" class="wv-grid"/>'
-        )
-        p.append(
-            f'<text x="{LP_L - 3}" y="{gy + 2.5:.1f}" '
-            f'font-size="6.5" text-anchor="end" class="wv-lbl">{round(v)}</text>'
-        )
-
-    # CI band: filled polygon (upper L→R then lower R→L)
-    upper = [(wx(i), wy(m + CI_Z * s)) for i, (m, s) in enumerate(zip(means, stds))]
-    lower = [(wx(i), wy(m - CI_Z * s)) for i, (m, s) in enumerate(zip(means, stds))]
-    poly_pts = " ".join(f"{x:.1f},{y:.1f}" for x, y in upper + lower[::-1])
-    p.append(f'<polygon points="{poly_pts}" fill="#3b82f6" fill-opacity="0.13"/>')
-
-    # Error bars at each data point
-    for i, (m, s) in enumerate(zip(means, stds)):
-        x  = wx(i)
-        ub = wy(m + CI_Z * s)
-        lb = wy(m - CI_Z * s)
-        # Vertical stem
-        p.append(
-            f'<line x1="{x:.1f}" y1="{ub:.1f}" x2="{x:.1f}" y2="{lb:.1f}" '
-            f'stroke="#3b82f6" stroke-width="1.1" opacity="0.4"/>'
-        )
-        # Caps
-        for cap_y in (ub, lb):
-            p.append(
-                f'<line x1="{x - 3:.1f}" y1="{cap_y:.1f}" '
-                f'x2="{x + 3:.1f}" y2="{cap_y:.1f}" '
-                f'stroke="#3b82f6" stroke-width="1.1" opacity="0.5"/>'
-            )
-
-    # Rolling mean line (drawn on top of CI band)
-    mean_pts = " ".join(f"{wx(i):.1f},{wy(m):.1f}" for i, m in enumerate(means))
-    p.append(
-        f'<polyline points="{mean_pts}" fill="none" stroke="#3b82f6" '
-        f'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>'
-    )
-
-    # Raw measurement dots (coloured by good-range membership)
-    for i, s in enumerate(speeds):
-        c = "#16a34a" if wind_min <= s <= wind_max else "#94a3b8"
-        p.append(
-            f'<circle cx="{wx(i):.1f}" cy="{wy(s):.1f}" r="3" '
-            f'fill="{c}" stroke="white" stroke-width="0.8" opacity="0.95"/>'
-        )
-
-    # CI label (top-right of chart area)
-    p.append(
-        f'<text x="{LP_L + cw - 2}" y="{LP_T + 9}" font-size="6" '
-        f'text-anchor="end" fill="#3b82f6" font-family="sans-serif" '
-        f'opacity="0.65">{CI_LABEL}</text>'
-    )
-
-    # X-axis time labels (up to 5 evenly spaced)
-    step = max(1, (n - 1) // 4)
-    shown = list(range(0, n, step))
-    if (n - 1) not in shown:
-        shown.append(n - 1)
-    for i in shown:
-        anchor = "start" if i == 0 else ("end" if i == n - 1 else "middle")
-        p.append(
-            f'<text x="{wx(i):.1f}" y="{VH - 2}" '
-            f'font-size="6.5" text-anchor="{anchor}" class="wv-lbl">{times_str[i]}</text>'
-        )
-
-    # ── Panel divider ─────────────────────────────────────────────────────────
-    p.append(
-        f'<line x1="{SPLIT - 1}" y1="6" x2="{SPLIT - 1}" y2="{VH - 6}" '
-        f'stroke-width="0.5" class="wv-grid"/>'
-    )
-
-    # ══ Right panel: compass rose ═════════════════════════════════════════════
-
-    # Panel title
-    p.append(
-        f'<text x="{RP_CX:.1f}" y="11" '
-        f'font-size="7" text-anchor="middle" class="wv-lbl">Wind direction</text>'
-    )
-
-    # Background reference circle
-    p.append(
-        f'<circle cx="{RP_CX:.1f}" cy="{RP_CY:.1f}" r="{ROSE_R:.1f}" '
-        f'fill="none" stroke-width="0.6" class="wv-grid"/>'
-    )
-
-    # Filled pie-wedge sectors
-    for i, count in enumerate(dir_counts):
-        if count == 0:
-            continue
-        r       = ROSE_R * (count / max_count)
-        svg_s   = i * 45 - 22.5 - 90
-        svg_e   = i * 45 + 22.5 - 90
-        sr, er  = math.radians(svg_s), math.radians(svg_e)
-        x1 = RP_CX + r * math.cos(sr);  y1 = RP_CY + r * math.sin(sr)
-        x2 = RP_CX + r * math.cos(er);  y2 = RP_CY + r * math.sin(er)
-        opacity = 0.30 + 0.60 * (count / max_count)
-        p.append(
-            f'<path d="M {RP_CX:.1f},{RP_CY:.1f} '
-            f'L {x1:.1f},{y1:.1f} A {r:.1f},{r:.1f} 0 0,1 {x2:.1f},{y2:.1f} Z" '
-            f'fill="#3b82f6" fill-opacity="{opacity:.2f}" '
-            f'stroke="white" stroke-width="0.7"/>'
-        )
-
-    # Compass direction labels (cardinal in bold/larger)
-    for i, lbl in enumerate(sector_labels):
-        ar       = math.radians(i * 45 - 90)
-        lr       = ROSE_R + 11
-        lx       = RP_CX + lr * math.cos(ar)
-        ly       = RP_CY + lr * math.sin(ar) + 2.5
-        cardinal = (i % 2 == 0)
-        p.append(
-            f'<text x="{lx:.1f}" y="{ly:.1f}" '
-            f'font-size="{"7.5" if cardinal else "6"}" text-anchor="middle" '
-            f'font-weight="{"bold" if cardinal else "normal"}" class="wv-lbl">{lbl}</text>'
-        )
-
-    # Centre dot
-    p.append(
-        f'<circle cx="{RP_CX:.1f}" cy="{RP_CY:.1f}" r="2.5" fill="#64748b" opacity="0.5"/>'
-    )
-
-    p.append("</svg>")
-    return "\n".join(p)
-
-
-def _history_html(db_path: str, days: int = 60) -> str:
-    """
-    Render a prediction accuracy history section from predictions.db.
-
-    Each day is a coloured square whose fill colour reflects the ACTUAL observed
-    conditions (via actual_frac → condition score gradient).  A thin border
-    signals prediction accuracy:
-      solid border  = prediction matched outcome (correct)
-      dashed border = prediction was wrong
-      pending dot   = no outcome yet
-    """
-    try:
-        from model.history import _backend, load_history, accuracy_summary
-    except ImportError:
-        return ""
-
-    # SQLite: skip if the file doesn't exist yet
-    if _backend() == "sqlite" and not os.path.exists(db_path):
-        return ""
-
-    df = load_history(db_path=db_path, days=days)
-    if df.empty:
-        return ""
-
-    # One row per predicting_date: use the last snapshot of each day
-    df = df.sort_values("snapshot_dt").groupby("predicting_date").last().reset_index()
-    df = df.sort_values("predicting_date")
-
-    summary = accuracy_summary(db_path=db_path, days=days)
-
-    dots = ""
-    for _, row in df.iterrows():
-        pred_good  = int(row["good"])
-        ag         = row["actual_good"]
-        af         = row["actual_frac"]
-        has_outcome = (ag is not None) and (ag == ag)
-        date_label  = row["predicting_date"]
-        prob_pct    = round(float(row["probability"]) * 100)
-
-        if not has_outcome:
-            title = (
-                f"{date_label}: predicted {'good' if pred_good else 'poor'} "
-                f"({prob_pct}%) — outcome pending"
-            )
-            dots += (
-                f'<span class="hist-dot hist-pending" title="{title}">·</span>'
-            )
-        else:
-            actual_good  = int(ag)
-            actual_score = int(round(float(af) * 100)) if (af == af and af is not None) else 0
-            fill_color   = _score_to_hex(actual_score)
-            correct      = pred_good == actual_good
-            pred_label   = "good" if pred_good else "poor"
-            act_label    = "good" if actual_good else "poor"
-            title = (
-                f"{date_label}: predicted {pred_label} ({prob_pct}%), "
-                f"actual {act_label} (score {actual_score}) "
-                f"[{'✓' if correct else '✗'}]"
-            )
-            border_style = "solid" if correct else "dashed"
-            border_color = "#15803d" if correct else "#dc2626"
-            dots += (
-                f'<span class="hist-dot" '
-                f'style="background:{fill_color};border:2px {border_style} {border_color};" '
-                f'title="{title}"></span>'
-            )
-
-    if not dots:
-        return ""
-
-    # Accuracy stats line
-    stats_line = ""
-    if summary:
-        n   = summary["n_evaluated"]
-        acc = round(summary["accuracy"] * 100)
-        parts = [f"<strong>{acc}%</strong> accuracy over {n} evaluated days"]
-        if summary.get("precision") is not None:
-            parts.append(f"precision {round(summary['precision']*100)}%")
-        if summary.get("recall") is not None:
-            parts.append(f"recall {round(summary['recall']*100)}%")
-        stats_line = " · ".join(parts)
-
-    legend = (
-        '<span style="display:inline-block;width:12px;height:12px;background:#22c55e;'
-        'border:2px solid #15803d;border-radius:2px;vertical-align:middle"></span>'
-        ' correct &nbsp;'
-        '<span style="display:inline-block;width:12px;height:12px;background:#fbbf24;'
-        'border:2px dashed #dc2626;border-radius:2px;vertical-align:middle"></span>'
-        ' wrong &nbsp;'
-        '<span style="color:#94a3b8;font-size:1.1rem;vertical-align:middle">·</span>'
-        ' pending &nbsp;'
-        '<span style="font-size:0.68rem;color:var(--c-muted)">colour = actual conditions</span>'
-    )
-
-    return f"""
-    <section class="history-section">
-      <h3 class="history-title">Prediction history <span class="history-days">({days}d)</span></h3>
-      <div class="history-dots">{dots}</div>
-      <div class="history-legend">{legend}</div>
-      {"<div class='history-stats'>" + stats_line + "</div>" if stats_line else ""}
-    </section>"""
 
 
 def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -> str:
@@ -643,7 +113,7 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
 
         # Condition score gradient bar
         # The track shows a fixed gradient; a mask covers the unfilled portion.
-        score_color     = _score_to_hex(c_score)
+        score_color     = score_to_hex(c_score)
         bar_label       = "Observed conditions" if c_source == "observed" else "Sailing outlook"
         # Zone marker at the "good" threshold on the gradient bar (score ≥ 60 = Good)
         good_zone_left  = 60
@@ -657,7 +127,7 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
             s_label    = s.get("condition_label",  "Good" if s["good"] else "Poor")
             s_icon     = s.get("condition_icon",   "⛵" if s["good"] else "🌫")
             s_src      = s.get("condition_source", "forecast")
-            s_color    = _score_to_hex(s_score)
+            s_color    = score_to_hex(s_score)
             s_pct      = round(s["probability"] * 100)
             snap_rows += f"""
             <tr class="snap-row">
@@ -671,7 +141,7 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
             </tr>"""
 
         # Expected wind chips (avg wind, gusts, consistency) from observed or NWP
-        exp_chips = _expected_wind_chips(headline, cfg)
+        exp_chips = expected_wind_chips(headline, cfg)
         # Extended forecast note (e.g. "+3 d" shown next to p value)
         lead_note = f" +{lead_days}d" if is_extended and lead_days is not None else ""
 
@@ -697,11 +167,11 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
           <span class="meta-chip">p={pct}%{lead_note}</span>
         </div>
 
-        {_wind_svg(headline.get("window_wind", {}), cfg)}
+        {wind_svg(headline.get("window_wind", {}), cfg)}
 
-        {_stats_html(headline, cfg)}
+        {stats_html(headline, cfg)}
 
-        {_prob_trend_svg(snaps)}
+        {prob_trend_svg(snaps)}
 
         <details class="snapshots">
           <summary>All snapshots ({len(snaps)})</summary>
@@ -716,7 +186,7 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
         if is_past_day:
             border_color = "var(--c-border)"
         else:
-            border_color = _score_to_hex(c_score)
+            border_color = score_to_hex(c_score)
 
         if is_past_day:
             past_cards_html += f"""
@@ -769,8 +239,8 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
 
     # Resolve db_path relative to this file if not provided
     if db_path is None:
-        db_path = os.path.join(_HERE, "predictions.db")
-    history_section = _history_html(db_path)
+        db_path = DEFAULT_SQLITE
+    history_section = history_html(db_path)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1177,14 +647,22 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Render predictions.json → index.html")
-    parser.add_argument("--predictions", default=os.path.join(_HERE, "predictions.json"))
-    parser.add_argument("--config",      default=os.path.join(_HERE, "config.toml"))
-    parser.add_argument("--out",         default=os.path.join(_HERE, "index.html"))
+    parser = argparse.ArgumentParser(description="Render forecast snapshots → index.html")
+    parser.add_argument(
+        "--predictions",
+        default=None,
+        help="Optional JSON file override (default: read from DB)",
+    )
+    parser.add_argument("--config", default=os.path.join(_HERE, "config.toml"))
+    parser.add_argument("--out",    default=os.path.join(_HERE, "index.html"))
     args = parser.parse_args()
 
-    with open(args.predictions) as f:
-        predictions = json.load(f)
+    if args.predictions:
+        with open(args.predictions) as f:
+            predictions = json.load(f)
+    else:
+        from model.predict import load_forecast_snapshots
+        predictions = load_forecast_snapshots()
 
     cfg = load_config(args.config)
     html = build_html(predictions, cfg)
@@ -1193,7 +671,7 @@ def main() -> None:
         f.write(html)
 
     print(f"Written: {args.out}  ({len(predictions)} predictions, "
-          f"{len(set(p['predicting_date'] for p in predictions))} days)")
+          f"{len(set(p['predicting_date'] for p in predictions if 'predicting_date' in p))} days)")
 
 
 if __name__ == "__main__":
