@@ -99,11 +99,11 @@ def stats_html(headline: dict, cfg: dict) -> str:
     nwp = headline.get("nwp_forecast", {})
     if nwp:
         cloud_chip = f'<span class="stats-chip">cloud {nwp["cloud_cover_pct"]}%</span>' if nwp.get("cloud_cover_pct") is not None else ""
-        blh_chip   = f'<span class="stats-chip">BLH {nwp["blh_m"]:,} m</span>' if nwp.get("blh_m") is not None else ""
+        blh_chip   = f'<span class="stats-chip">boundary layer {nwp["blh_m"]:,} m</span>' if nwp.get("blh_m") is not None else ""
         if cloud_chip or blh_chip:
             rows.append(
                 f'<div class="stats-row stats-nwp">'
-                f'<span class="stats-label">NWP</span>'
+                f'<span class="stats-label">Forecast</span>'
                 f'{cloud_chip}{blh_chip}'
                 f'</div>'
             )

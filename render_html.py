@@ -19,7 +19,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 from utils.config import load_config
 from utils.db import DEFAULT_SQLITE
 from render.charts import prob_trend_svg, wind_svg
-from render.data import score_to_hex, window_stats, expected_wind_chips, stats_html, history_html
+from render.data import score_to_hex, window_stats, expected_wind_chips, stats_html
 
 
 def dir_label(degrees: float) -> str:
@@ -172,14 +172,6 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
         {stats_html(headline, cfg)}
 
         {prob_trend_svg(snaps)}
-
-        <details class="snapshots">
-          <summary>All snapshots ({len(snaps)})</summary>
-          <table class="snap-table">
-            <tbody>{snap_rows}
-            </tbody>
-          </table>
-        </details>
       </div>"""
 
         # Card border colour follows condition score for active days
@@ -236,11 +228,6 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
     cards_html = active_cards_html + past_section
 
     generated = datetime.now().strftime("%-d %B %Y, %H:%M")
-
-    # Resolve db_path relative to this file if not provided
-    if db_path is None:
-        db_path = DEFAULT_SQLITE
-    history_section = history_html(db_path)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -633,8 +620,6 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       <h1>⛵ Wind Predictor</h1>
       <p class="subtitle">Sailing conditions forecast · Generated {generated}</p>
     </header>
-
-    {history_section}
 
     {cards_html}
 
