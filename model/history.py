@@ -35,12 +35,13 @@ from typing import Optional
 
 import pandas as pd
 
+import sys as _sys
+import os as _os
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+
+from utils.db import DEFAULT_SQLITE, backend as _backend_fn, get_connection, placeholder
+
 # ── Backend detection ─────────────────────────────────────────────────────────
-
-def _backend() -> str:
-    """Return 'postgres' if SUPABASE_DB_URL is set, else 'sqlite'."""
-    return "postgres" if os.environ.get("SUPABASE_DB_URL") else "sqlite"
-
 
 # ── SQLite schema ─────────────────────────────────────────────────────────────
 
@@ -66,40 +67,26 @@ CREATE INDEX IF NOT EXISTS idx_run_ts    ON predictions(run_ts);
 
 # ── Connection helpers ────────────────────────────────────────────────────────
 
-def _connect_sqlite(db_path: str) -> sqlite3.Connection:
-    os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
-    con = sqlite3.connect(db_path)
-    con.executescript(_SQLITE_SCHEMA)
-    con.commit()
-    return con
+def _backend() -> str:
+    return _backend_fn()
 
 
-def _connect_postgres():
-    try:
-        import psycopg2
-    except ImportError as e:
-        raise ImportError(
-            "psycopg2-binary is required for the Supabase backend. "
-            "Run: pip install psycopg2-binary"
-        ) from e
-    return psycopg2.connect(os.environ["SUPABASE_DB_URL"])
+def _connect(db_path: str = DEFAULT_SQLITE):
+    """Return (connection, backend). Creates SQLite schema if needed."""
+    con, bk = get_connection(db_path)
+    if bk == "sqlite":
+        con.executescript(_SQLITE_SCHEMA)
+        con.commit()
+    return con, bk
 
 
-def _connect(db_path: str = "predictions.db"):
-    """Return (connection, backend). db_path is only used for the SQLite backend."""
-    if _backend() == "postgres":
-        return _connect_postgres(), "postgres"
-    return _connect_sqlite(db_path), "sqlite"
-
-
-def _ph(backend: str) -> str:
-    """SQL placeholder character for the given backend."""
-    return "%s" if backend == "postgres" else "?"
+def _ph(bk: str) -> str:
+    return placeholder(bk)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def record_predictions(results: list[dict], db_path: str = "predictions.db") -> int:
+def record_predictions(results: list[dict], db_path: str = DEFAULT_SQLITE) -> int:
     """
     Insert prediction results into the database.
     Skips entries that have an "error" key or are missing required fields.
@@ -142,7 +129,7 @@ def record_outcome(
     predicting_date: str,
     actual_good: bool,
     actual_frac: float,
-    db_path: str = "predictions.db",
+    db_path: str = DEFAULT_SQLITE,
 ) -> None:
     """
     Store the ground-truth outcome for a date so accuracy can be computed later.
@@ -169,7 +156,7 @@ def record_outcome(
         con.close()
 
 
-def backfill_outcomes(daily_quality: "pd.Series", db_path: str = "predictions.db") -> int:
+def backfill_outcomes(daily_quality: "pd.Series", db_path: str = DEFAULT_SQLITE) -> int:
     """
     Backfill the outcomes table from a pd.Series indexed by datetime.date.
     daily_quality values are fractions (0-1); threshold from the first prediction row is used.
@@ -213,7 +200,7 @@ def backfill_outcomes(daily_quality: "pd.Series", db_path: str = "predictions.db
 
 
 def load_history(
-    db_path: str = "predictions.db",
+    db_path: str = DEFAULT_SQLITE,
     days: Optional[int] = 30,
     snapshot_hour: Optional[int] = None,
 ) -> pd.DataFrame:
@@ -289,7 +276,7 @@ def load_history(
     return df
 
 
-def accuracy_summary(db_path: str = "predictions.db", days: int = 30) -> dict:
+def accuracy_summary(db_path: str = DEFAULT_SQLITE, days: int = 30) -> dict:
     """
     Compute prediction accuracy over the last `days` calendar days.
     Uses only the most-recent snapshot per target date (most informative).
