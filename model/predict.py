@@ -14,7 +14,6 @@ import json
 import math
 import os
 import sys
-import tomllib
 from datetime import date, datetime, timedelta
 from typing import Optional
 
@@ -24,6 +23,9 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from model.features import extract_snapshot_features, _target_date
+from utils.config import load_config
+from utils.circular import circular_std
+from utils.db import DEFAULT_SQLITE, backend, get_connection, placeholder
 
 
 # Probability decay per calendar-day lead time from today.
@@ -88,13 +90,8 @@ def _condition_rating(result: dict, cfg: dict) -> tuple[int, str, str]:
 
         # Direction consistency modifier: 0.6 (variable) → 1.0 (rock-steady)
         if len(dirs) >= 3:
-            rad = [math.radians(d) for d in dirs]
-            R   = math.hypot(
-                sum(math.sin(r) for r in rad) / len(rad),
-                sum(math.cos(r) for r in rad) / len(rad),
-            )
-            circ_std   = math.degrees(math.sqrt(-2 * math.log(max(R, 1e-9))))
-            dir_factor = max(0.0, 1.0 - circ_std / dir_max)
+            circ_std_val = circular_std(dirs)
+            dir_factor = max(0.0, 1.0 - circ_std_val / dir_max)
         else:
             dir_factor = 0.5
 
@@ -114,11 +111,6 @@ def _condition_rating(result: dict, cfg: dict) -> tuple[int, str, str]:
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(_HERE, "..", "config.toml")
-
-
-def load_config(path: str = DEFAULT_CONFIG) -> dict:
-    with open(path, "rb") as f:
-        return tomllib.load(f)
 
 
 def predict_snapshot(
@@ -373,13 +365,129 @@ def merge_predictions(
     return merged
 
 
+_SNAPSHOT_SQLITE_SCHEMA = """
+CREATE TABLE IF NOT EXISTS forecast_snapshots (
+    snapshot        TEXT NOT NULL,
+    predicting_date TEXT NOT NULL,
+    payload         TEXT NOT NULL,
+    PRIMARY KEY (snapshot, predicting_date)
+);
+CREATE INDEX IF NOT EXISTS idx_fs_date ON forecast_snapshots(predicting_date);
+"""
+
+
+def _ensure_snapshot_schema(con, bk: str) -> None:
+    if bk == "sqlite":
+        con.executescript(_SNAPSHOT_SQLITE_SCHEMA)
+        con.commit()
+    else:
+        cur = con.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS forecast_snapshots (
+                snapshot TEXT NOT NULL, predicting_date TEXT NOT NULL,
+                payload TEXT NOT NULL, PRIMARY KEY (snapshot, predicting_date)
+            )
+        """)
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_fs_date ON forecast_snapshots(predicting_date)"
+        )
+        con.commit()
+
+
+def save_forecast_snapshots(
+    results: list[dict],
+    days_to_keep: int = 7,
+    db_path: str = DEFAULT_SQLITE,
+) -> None:
+    """
+    Upsert new forecast entries into forecast_snapshots and prune old ones.
+    Replaces the file-based merge_predictions().
+    """
+    if not results:
+        return
+
+    con, bk = get_connection(db_path)
+    _ensure_snapshot_schema(con, bk)
+    ph = placeholder(bk)
+
+    if bk == "postgres":
+        upsert_sql = (
+            f"INSERT INTO forecast_snapshots (snapshot, predicting_date, payload) "
+            f"VALUES ({ph}, {ph}, {ph}) "
+            f"ON CONFLICT (snapshot, predicting_date) DO UPDATE SET payload = EXCLUDED.payload"
+        )
+    else:
+        upsert_sql = (
+            f"INSERT OR REPLACE INTO forecast_snapshots (snapshot, predicting_date, payload) "
+            f"VALUES ({ph}, {ph}, {ph})"
+        )
+
+    cutoff = (date.today() - timedelta(days=days_to_keep)).isoformat()
+
+    try:
+        cur = con.cursor()
+        rows = [
+            (r.get("snapshot", ""), r["predicting_date"], json.dumps(r))
+            for r in results
+            if "predicting_date" in r
+        ]
+        cur.executemany(upsert_sql, rows)
+        cur.execute(f"DELETE FROM forecast_snapshots WHERE predicting_date < {ph}", (cutoff,))
+        con.commit()
+    finally:
+        con.close()
+
+
+def load_forecast_snapshots(
+    days: int = 7,
+    db_path: str = DEFAULT_SQLITE,
+) -> list[dict]:
+    """
+    Load the rolling forecast window from the DB.
+    Returns list[dict] — same type build_html() accepts.
+    """
+    bk = backend()
+
+    if bk == "sqlite":
+        import sqlite3 as _sqlite3
+        if not os.path.exists(db_path):
+            return []
+        con = _sqlite3.connect(db_path)
+        con.executescript(_SNAPSHOT_SQLITE_SCHEMA)
+        con.commit()
+    else:
+        con, _ = get_connection(db_path)
+        _ensure_snapshot_schema(con, "postgres")
+
+    ph = placeholder(bk)
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+
+    try:
+        cur = con.cursor()
+        cur.execute(
+            f"SELECT payload FROM forecast_snapshots WHERE predicting_date >= {ph} "
+            f"ORDER BY predicting_date, snapshot",
+            (cutoff,),
+        )
+        rows = cur.fetchall()
+    finally:
+        con.close()
+
+    return [json.loads(row[0]) for row in rows]
+
+
 if __name__ == "__main__":
     args = sys.argv[1:]
     config_path = DEFAULT_CONFIG
-    cfg = load_config(config_path)
-    root = os.path.dirname(os.path.abspath(config_path))
 
-    df = pd.read_parquet(os.path.join(root, cfg["paths"]["data_parquet"]))
+    from input.weather_store import load_weather_readings
+    df = load_weather_readings(
+        start=date.today() - timedelta(days=35),
+        end=date.today(),
+    )
+    if df.empty:
+        print("ERROR: No weather data in DB. Run scraper + stitch first.")
+        sys.exit(1)
 
     # Optional: override snapshot time via CLI args (date HH:MM)
     snap_dt: Optional[pd.Timestamp] = None
@@ -393,26 +501,25 @@ if __name__ == "__main__":
 
     results = predict_now(df, config_path, snap_dt=snap_dt)
 
-    # Merge with existing predictions.json (rolling 7-day window)
-    pred_path = os.path.join(root, cfg["paths"]["predictions_file"])
-    merged = merge_predictions(results, pred_path)
-    n_days = len({r["predicting_date"] for r in merged if "predicting_date" in r})
-    print(f"Saved: {pred_path}  ({len(merged)} entries, {n_days} day(s))", flush=True)
+    # Save forecast snapshots to DB (replaces predictions.json)
+    save_forecast_snapshots(results)
+    snapshots = load_forecast_snapshots()
+    n_days = len({r["predicting_date"] for r in snapshots if "predicting_date" in r})
+    print(f"Snapshots saved to DB  ({len(snapshots)} entries, {n_days} day(s))", flush=True)
 
     # ── Persist direct predictions to history DB ───────────────────────────────
-    db_path = os.path.join(root, "predictions.db")
     try:
         from model.history import record_predictions, backfill_outcomes
         from model.features import compute_daily_target
 
-        # Only record direct ML predictions (not extended forecasts or observed-only entries)
+        cfg = load_config(config_path)
         direct = [r for r in results
                   if not r.get("is_extended_forecast") and not r.get("window_observed_only")]
-        n_written = record_predictions(direct, db_path)
-        print(f"History: wrote {n_written} row(s) to {db_path}", flush=True)
+        n_written = record_predictions(direct)
+        print(f"History: wrote {n_written} row(s)", flush=True)
 
         daily_quality = compute_daily_target(df, cfg)
-        n_outcomes = backfill_outcomes(daily_quality, db_path)
+        n_outcomes = backfill_outcomes(daily_quality)
         print(f"History: upserted {n_outcomes} outcome(s)", flush=True)
     except Exception as exc:
         print(f"  [!] History recording skipped: {exc}", file=sys.stderr)
