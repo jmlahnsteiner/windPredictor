@@ -13,3 +13,7 @@ __pycache__
 logs/
 .DS_Store
 predictions.db
+
+.env
+local.db
+index.html
