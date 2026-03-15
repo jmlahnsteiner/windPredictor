@@ -30,15 +30,15 @@ def dir_label(degrees: float) -> str:
 # ── Condition-scale colour palette ──────────────────────────────────────────
 # (text-colour, background, border) keyed by condition label
 _COND_BADGE: dict[str, tuple[str, str, str]] = {
-    "No wind":        ("#475569", "#f1f5f9", "#cbd5e1"),
-    "Very light":     ("#0369a1", "#e0f2fe", "#bae6fd"),
-    "Marginal":       ("#92400e", "#fffbeb", "#fde68a"),
-    "Fair":           ("#3d6b1a", "#f0fdf4", "#bbf7d0"),
-    "Good":           ("#15803d", "#dcfce7", "#86efac"),
-    "Great":          ("#047857", "#d1fae5", "#6ee7b7"),
-    "Excellent":      ("#0e7490", "#ecfeff", "#a5f3fc"),
-    "Strong / gusty": ("#9a3412", "#fff7ed", "#fed7aa"),
-    "Storm":          ("#dc2626", "#fef2f2", "#fecaca"),
+    "No wind":        ("#94a3b8", "rgba(148,163,184,0.10)", "rgba(148,163,184,0.20)"),
+    "Very light":     ("#7dd3fc", "rgba(125,211,252,0.12)", "rgba(125,211,252,0.25)"),
+    "Marginal":       ("#fbbf24", "rgba(251,191,36,0.12)",  "rgba(251,191,36,0.25)"),
+    "Fair":           ("#86efac", "rgba(134,239,172,0.12)", "rgba(134,239,172,0.25)"),
+    "Good":           ("#22c55e", "rgba(34,197,94,0.12)",   "rgba(34,197,94,0.25)"),
+    "Great":          ("#10b981", "rgba(16,185,129,0.12)",  "rgba(16,185,129,0.25)"),
+    "Excellent":      ("#06b6d4", "rgba(6,182,212,0.12)",   "rgba(6,182,212,0.25)"),
+    "Strong / gusty": ("#fb923c", "rgba(251,146,60,0.12)",  "rgba(251,146,60,0.25)"),
+    "Storm":          ("#f472b6", "rgba(244,114,182,0.12)", "rgba(244,114,182,0.25)"),
 }
 
 def _badge_style(label: str) -> str:
@@ -48,21 +48,21 @@ def _badge_style(label: str) -> str:
 
 
 def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -> str:
-    sailing = cfg.get("sailing", {})
+    sailing      = cfg.get("sailing", {})
     window_start = sailing.get("window_start", "08:00")
     window_end   = sailing.get("window_end",   "16:00")
     wind_min     = sailing.get("wind_speed_min", 2)
     wind_max     = sailing.get("wind_speed_max", 10)
     threshold    = cfg.get("prediction", {}).get("min_good_fraction", 0.3)
 
-    # Group by predicting_date, keep all snapshots
+    # Group snapshots by predicting_date
     by_date: dict[str, list[dict]] = defaultdict(list)
     for p in predictions:
         if "predicting_date" not in p:
             continue
         by_date[p["predicting_date"]].append(p)
 
-    # Classify each date as past (sailing window closed) or active/future.
+    # Classify dates
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
     we_h, we_m = map(int, window_end.split(":"))
@@ -77,155 +77,124 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
 
     active_dates = sorted(d for d in by_date if not _is_past(d))
     past_dates   = sorted((d for d in by_date if _is_past(d)), reverse=True)
-    sorted_dates = active_dates + past_dates   # active first, newest-past last
 
-    # Build day cards HTML — active cards shown directly, past cards in one fold-out
-    active_cards_html = ""
-    past_cards_html   = ""
-    for date_str in sorted_dates:
-        snaps = sorted(by_date[date_str], key=lambda x: x["snapshot"])
-        # Best (latest) prediction drives the headline
-        headline = snaps[-1]
-        prob = headline["probability"]
-        good = headline["good"]
-        is_past_day = _is_past(date_str)
+    def _card_data(date_str: str) -> dict:
+        snaps   = sorted(by_date[date_str], key=lambda x: x["snapshot"])
+        h       = snaps[-1]
+        prob    = h["probability"]
+        pct     = round(prob * 100)
+        c_score = h.get("condition_score", pct)
+        c_label = h.get("condition_label", "Good" if h["good"] else "Poor")
+        c_icon  = h.get("condition_icon",  "⛵" if h["good"] else "🌫")
+        is_ext  = h.get("is_extended_forecast", False)
+        lead    = h.get("lead_days", None)
+        lead_note = f" +{lead}d" if is_ext and lead is not None else ""
+        return dict(
+            snaps=snaps, headline=h, pct=pct,
+            c_score=c_score, c_label=c_label, c_icon=c_icon,
+            lead_note=lead_note,
+            score_color=score_to_hex(c_score),
+        )
 
-        # Formatted date
-        dt = datetime.strptime(date_str, "%Y-%m-%d")
-        day_label = dt.strftime("%A, %-d %B %Y")
+    GOOD_ZONE = 60   # score threshold for "good" zone marker position
 
-        pct          = round(prob * 100)
-        c_score      = headline.get("condition_score",  pct)
-        c_label      = headline.get("condition_label",  "Good" if good else "Poor")
-        c_icon       = headline.get("condition_icon",   "⛵" if good else "🌫")
-        c_source     = headline.get("condition_source", "forecast")
-        is_extended  = headline.get("is_extended_forecast", False)
-        lead_days    = headline.get("lead_days", None)
+    # ── Hero card ─────────────────────────────────────────────────────────────
+    hero_date = active_dates[0] if active_dates else (past_dates[0] if past_dates else None)
 
-        if is_past_day:
-            status_class   = "past"
-            badge_label    = f"Past · {c_label}"
-            badge_style    = _badge_style(c_label)
-        else:
-            status_class   = "good" if good else "poor"
-            badge_label    = c_label
-            badge_style    = _badge_style(c_label)
+    if hero_date is None:
+        cards_html = '<p class="no-data">No forecast data available.</p>'
+    else:
+        d = _card_data(hero_date)
+        dt = datetime.strptime(hero_date, "%Y-%m-%d")
+        day_label = dt.strftime("%A, %-d %B %Y").upper()
 
-        # Condition score gradient bar
-        # The track shows a fixed gradient; a mask covers the unfilled portion.
-        score_color     = score_to_hex(c_score)
-        bar_label       = "Observed conditions" if c_source == "observed" else "Sailing outlook"
-        # Zone marker at the "good" threshold on the gradient bar (score ≥ 60 = Good)
-        good_zone_left  = 60
+        exp_chips = expected_wind_chips(d["headline"], cfg)
+        sparkline = prob_trend_svg(d["snaps"], size=(90, 30))
 
-        # Snapshot rows (condition label + probability)
-        snap_rows = ""
-        for s in snaps:
-            snap_dt    = datetime.fromisoformat(s["snapshot"])
-            snap_time  = snap_dt.strftime("%H:%M")
-            s_score    = s.get("condition_score",  round(s["probability"] * 100))
-            s_label    = s.get("condition_label",  "Good" if s["good"] else "Poor")
-            s_icon     = s.get("condition_icon",   "⛵" if s["good"] else "🌫")
-            s_src      = s.get("condition_source", "forecast")
-            s_color    = score_to_hex(s_score)
-            s_pct      = round(s["probability"] * 100)
-            snap_rows += f"""
-            <tr class="snap-row">
-              <td class="snap-time">Snapshot {snap_time}</td>
-              <td class="snap-dot">{s_icon}</td>
-              <td class="snap-label" style="color:{s_color}">{s_label}</td>
-              <td class="snap-score" style="color:{s_color}">{s_score}</td>
-              <td class="snap-bar-cell">
-                <div class="snap-bar" style="width:{s_score}%;background:{s_color}"></div>
-              </td>
-            </tr>"""
+        hero_html = f"""
+    <div class="hero-card">
+      <div class="hero-top">
+        <div class="hero-left">
+          <div class="hero-date">{day_label}</div>
+          <span class="hero-pct" style="color:{d['score_color']}">{d['pct']}%</span>
+          <div class="hero-label">{d['c_icon']} {d['c_label']}</div>
+        </div>
+        <div class="hero-right">
+          <div class="hero-window">{window_start}–{window_end}</div>
+          <div class="hero-sparkline">{sparkline}</div>
+        </div>
+      </div>
+      <div class="cond-section">
+        <div class="cond-bar-wrap">
+          <div class="cond-bar-track">
+            <div class="cond-bar-mask" style="left:{d['c_score']}%"></div>
+            <div class="cond-zone-mark" style="left:{GOOD_ZONE}%"
+                 title="Good threshold (score {GOOD_ZONE})"></div>
+          </div>
+          <div class="cond-zone-labels">
+            <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
+          </div>
+        </div>
+        <span class="cond-score-value" style="color:{d['score_color']}">{d['c_score']}</span>
+      </div>
+      <div class="meta-row">
+        {exp_chips}
+        <span class="meta-chip">p={d['pct']}%{d['lead_note']}</span>
+      </div>
+      {wind_svg(d['headline'].get("window_wind", {}), cfg)}
+      {stats_html(d['headline'], cfg)}
+    </div>"""
 
-        # Expected wind chips (avg wind, gusts, consistency) from observed or NWP
-        exp_chips = expected_wind_chips(headline, cfg)
-        # Extended forecast note (e.g. "+3 d" shown next to p value)
-        lead_note = f" +{lead_days}d" if is_extended and lead_days is not None else ""
-
-        card_body = f"""
-      <div class="card-body">
-        <div class="cond-section">
-          <span class="cond-bar-label">{bar_label}</span>
+        # ── Compact grid (next 2 active days after hero) ──────────────────────
+        compact_cards = ""
+        for cdate in active_dates[1:3]:
+            cd = _card_data(cdate)
+            cdt = datetime.strptime(cdate, "%Y-%m-%d")
+            short_label = cdt.strftime("%a %-d %b").upper()
+            compact_chips = expected_wind_chips(cd["headline"], cfg, compact=True)
+            compact_cards += f"""
+      <div class="compact-card">
+        <div class="compact-date">{short_label}</div>
+        <span class="compact-pct" style="color:{cd['score_color']}">{cd['pct']}%</span>
+        <div class="compact-label">{cd['c_icon']} {cd['c_label']}</div>
+        <div class="cond-section compact-bar">
           <div class="cond-bar-wrap">
             <div class="cond-bar-track">
-              <div class="cond-bar-mask" style="left:{c_score}%"></div>
-              <div class="cond-zone-mark" style="left:{good_zone_left}%"
-                   title="Good threshold (score 60)"></div>
-            </div>
-            <div class="cond-zone-labels">
-              <span>No wind</span><span>Marginal</span><span>Good</span><span>Excellent</span>
+              <div class="cond-bar-mask" style="left:{cd['c_score']}%"></div>
+              <div class="cond-zone-mark" style="left:{GOOD_ZONE}%"></div>
             </div>
           </div>
-          <span class="cond-score-value" style="color:{score_color}">{c_score}</span>
         </div>
-
-        <div class="meta-row">
-          {exp_chips}
-          <span class="meta-chip">p={pct}%{lead_note}</span>
-        </div>
-
-        {wind_svg(headline.get("window_wind", {}), cfg)}
-
-        {stats_html(headline, cfg)}
-
-        {prob_trend_svg(snaps)}
+        <div class="meta-row">{compact_chips}</div>
       </div>"""
 
-        # Card border colour follows condition score for active days
-        if is_past_day:
-            border_color = "var(--c-border)"
-        else:
-            border_color = score_to_hex(c_score)
+        compact_grid_html = (
+            f'<div class="compact-grid">{compact_cards}</div>'
+            if compact_cards else ""
+        )
 
-        if is_past_day:
-            past_cards_html += f"""
-    <details class="past-card-wrap">
-      <summary class="past-card-summary">
-        <article class="day-card past" style="margin-bottom:0;border-left-color:{border_color}">
-          <header class="card-header">
-            <div class="card-title">
-              <span class="card-icon">{c_icon}</span>
-              <h2>{day_label}</h2>
-            </div>
-            <div class="card-badge" style="{badge_style}">{badge_label}</div>
-          </header>
-        </article>
-      </summary>
-      <article class="day-card past past-detail" style="border-left-color:{border_color}">
-        {card_body}
-      </article>
-    </details>"""
-        else:
-            active_cards_html += f"""
-    <article class="day-card {status_class}" style="border-left-color:{border_color}">
-      <header class="card-header">
-        <div class="card-title">
-          <span class="card-icon">{c_icon}</span>
-          <h2>{day_label}</h2>
-        </div>
-        <div class="card-badge" style="{badge_style}">{badge_label}</div>
-      </header>
-      {card_body}
-    </article>"""
+        # ── Past days strip (up to 5, newest first) ──────────────────────────
+        past_items = ""
+        for pdate in past_dates[:5]:
+            pd = _card_data(pdate)
+            pdt = datetime.strptime(pdate, "%Y-%m-%d")
+            short = pdt.strftime("%a %-d")
+            past_items += f"""
+      <div class="past-day">
+        <span class="past-date">{short}</span>
+        <span class="past-icon">{pd['c_icon']}</span>
+        <span class="past-score">{pd['c_score']}</span>
+      </div>"""
 
-    # Wrap all past-day cards in a single collapsible section
-    n_past = len(past_dates)
-    if past_cards_html:
-        past_label = f"Past {n_past} day{'s' if n_past != 1 else ''}"
-        past_section = f"""
-    <details class="past-week-wrap">
-      <summary class="past-week-summary">{past_label}</summary>
-      <div class="past-week-inner">
-        {past_cards_html}
-      </div>
-    </details>"""
-    else:
-        past_section = ""
+        past_row_html = ""
+        if past_items:
+            past_row_html = f"""
+    <div class="past-row">
+      <span class="past-label">Past</span>
+      <div class="past-days">{past_items}</div>
+    </div>"""
 
-    cards_html = active_cards_html + past_section
+        cards_html = hero_html + compact_grid_html + past_row_html
 
     generated = datetime.now().strftime("%-d %B %Y, %H:%M")
 
@@ -238,39 +207,17 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
   <style>
     /* ── Tokens ── */
     :root {{
-      --c-bg:       #f7f9fb;
-      --c-surface:  #ffffff;
-      --c-border:   #e2e8f0;
-      --c-text:     #1e293b;
-      --c-muted:    #64748b;
-      --c-good:     #16a34a;
-      --c-good-bg:  #f0fdf4;
-      --c-good-bd:  #bbf7d0;
-      --c-warn:     #d97706;
-      --c-warn-bg:  #fffbeb;
-      --c-poor:     #dc2626;
-      --c-poor-bg:  #fef2f2;
-      --c-poor-bd:  #fecaca;
-      --c-track:    #e2e8f0;
-      --radius:     12px;
-      --shadow:     0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
-    }}
-
-    @media (prefers-color-scheme: dark) {{
-      :root {{
-        --c-bg:       #0f172a;
-        --c-surface:  #1e293b;
-        --c-border:   #334155;
-        --c-text:     #e2e8f0;
-        --c-muted:    #94a3b8;
-        --c-good-bg:  #052e16;
-        --c-good-bd:  #166534;
-        --c-warn-bg:  #1c1209;
-        --c-poor-bg:  #1c0505;
-        --c-poor-bd:  #7f1d1d;
-        --c-track:    #334155;
-        --shadow:     0 1px 3px rgba(0,0,0,.4);
-      }}
+      --c-bg:      #0f1117;
+      --c-surface: #1e2436;
+      --c-border:  #2d3555;
+      --c-text:    #e2e8f0;
+      --c-muted:   #94a3b8;
+      --c-dim:     #4b5675;
+      --c-accent:  #22d3ee;
+      --c-good:    #16a34a;
+      --c-track:   #1e2436;
+      --radius:    8px;
+      --shadow:    0 1px 3px rgba(0,0,0,0.4);
     }}
 
     /* ── Reset ── */
@@ -288,19 +235,29 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
     .page-wrap {{ max-width: 680px; margin: 0 auto; }}
 
     /* ── Page header ── */
-    .page-header {{ margin-bottom: 2rem; }}
+    .page-header {{ margin-bottom: 1.5rem; }}
     .page-header h1 {{
-      font-size: 1.6rem;
+      font-size: 1.4rem;
       font-weight: 700;
       letter-spacing: -0.02em;
+      color: var(--c-text);
     }}
     .page-header .subtitle {{
-      color: var(--c-muted);
-      font-size: 0.875rem;
-      margin-top: 0.25rem;
+      color: var(--c-dim);
+      font-size: 0.8rem;
+      margin-top: 0.2rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
     }}
 
-    /* ── Day card ── */
+    .no-data {{
+      color: var(--c-muted);
+      text-align: center;
+      padding: 3rem 0;
+      font-size: 0.95rem;
+    }}
+
+    /* ── Day card (kept for backward compat with wind_svg/stats_html output) ── */
     .day-card {{
       background: var(--c-surface);
       border: 1px solid var(--c-border);
@@ -310,47 +267,8 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       overflow: hidden;
     }}
     .day-card.good {{ border-left: 4px solid var(--c-good); }}
-    .day-card.poor {{ border-left: 4px solid var(--c-poor); }}
+    .day-card.poor {{ border-left: 4px solid var(--c-border); }}
     .day-card.past {{ border-left: 4px solid var(--c-border); opacity: 0.72; }}
-
-    /* Past-week outer fold-out */
-    .past-week-wrap {{ margin-bottom: 1.25rem; }}
-    .past-week-summary {{
-      cursor: pointer;
-      list-style: none;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--c-muted);
-      padding: 0.6rem 0;
-      user-select: none;
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }}
-    .past-week-summary::-webkit-details-marker {{ display: none; }}
-    .past-week-summary::before {{
-      content: "▸";
-      font-size: 0.75rem;
-      transition: transform 0.2s;
-    }}
-    .past-week-wrap[open] .past-week-summary::before {{ transform: rotate(90deg); }}
-    .past-week-inner {{ padding-left: 0; }}
-
-    /* Past-day collapsible wrapper */
-    .past-card-wrap {{ margin-bottom: 1.25rem; }}
-    .past-card-wrap[open] .past-card-summary article {{ border-radius: var(--radius) var(--radius) 0 0; margin-bottom: 0; }}
-    .past-card-summary {{ list-style: none; cursor: pointer; }}
-    .past-card-summary::-webkit-details-marker {{ display: none; }}
-    .past-card-summary article {{ margin-bottom: 0; }}
-    .past-card-summary .card-header::after {{
-      content: "▸";
-      font-size: 0.8rem;
-      color: var(--c-muted);
-      margin-left: auto;
-      transition: transform 0.2s;
-    }}
-    .past-card-wrap[open] .past-card-summary .card-header::after {{ transform: rotate(90deg); }}
-    .past-detail {{ border-radius: 0 0 var(--radius) var(--radius); border-top: none; }}
 
     /* card header */
     .card-header {{
@@ -605,6 +523,107 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
       color: var(--c-text);
     }}
 
+    /* ── Hero card ── */
+    .hero-card {{
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      margin-bottom: 10px;
+    }}
+    .hero-top {{
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }}
+    .hero-left {{ flex: 1; }}
+    .hero-date {{
+      color: var(--c-muted);
+      font-size: 11px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }}
+    .hero-pct {{
+      display: block;
+      font-size: 52px;
+      font-weight: 700;
+      line-height: 1;
+    }}
+    .hero-label {{
+      color: var(--c-dim);
+      font-size: 12px;
+      margin-top: 4px;
+    }}
+    .hero-right {{ text-align: right; flex-shrink: 0; }}
+    .hero-window {{
+      color: var(--c-muted);
+      font-size: 10px;
+      margin-bottom: 6px;
+    }}
+    .hero-sparkline svg {{ display: block; }}
+
+    /* ── Compact grid ── */
+    .compact-grid {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }}
+    @media (max-width: 480px) {{
+      .compact-grid {{ grid-template-columns: 1fr; }}
+    }}
+    .compact-card {{
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }}
+    .compact-date {{
+      color: var(--c-muted);
+      font-size: 10px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }}
+    .compact-pct {{
+      display: block;
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1;
+    }}
+    .compact-label {{
+      color: var(--c-dim);
+      font-size: 11px;
+      margin-bottom: 8px;
+    }}
+    .compact-bar .cond-bar-track {{ height: 4px; }}
+    .compact-bar .cond-zone-mark {{ top: -2px; height: 8px; }}
+    .compact-bar {{ margin-bottom: 8px; }}
+
+    /* ── Past days strip ── */
+    .past-row {{
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--c-border);
+    }}
+    .past-label {{
+      color: var(--c-dim);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      white-space: nowrap;
+    }}
+    .past-days {{ display: flex; flex-wrap: wrap; gap: 12px; }}
+    .past-day  {{ display: flex; align-items: center; gap: 4px; color: var(--c-dim); font-size: 11px; }}
+    .past-score {{ font-weight: 600; }}
+
     /* ── Footer ── */
     .page-footer {{
       margin-top: 2.5rem;
@@ -618,7 +637,7 @@ def build_html(predictions: list[dict], cfg: dict, db_path: str | None = None) -
   <div class="page-wrap">
     <header class="page-header">
       <h1>⛵ Wind Predictor</h1>
-      <p class="subtitle">Sailing conditions forecast · Generated {generated}</p>
+      <p class="subtitle">Generated {generated}</p>
     </header>
 
     {cards_html}
