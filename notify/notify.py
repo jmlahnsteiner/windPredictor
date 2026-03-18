@@ -1,7 +1,6 @@
 """notify/notify.py — Good-day email notification."""
 from __future__ import annotations
 
-import json
 import os
 import sys
 import tomllib
@@ -76,9 +75,9 @@ def main() -> None:
     window_start = sailing.get("window_start", "08:00")
     window_end = sailing.get("window_end", "16:00")
 
-    # 4. Load predictions.json
-    with open(Path("predictions.json")) as f:
-        predictions = json.load(f)
+    # 4. Load forecast snapshots from DB
+    from model.predict import load_forecast_snapshots
+    predictions = load_forecast_snapshots()
 
     # 5-6. Find today's latest entry
     today = date.today().isoformat()

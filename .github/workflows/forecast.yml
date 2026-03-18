@@ -79,6 +79,7 @@ jobs:
         if: "github.event.schedule == '0 4 * * *'"
         run: python notify/notify.py
         env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
 
