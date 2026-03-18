@@ -60,8 +60,9 @@ jobs:
         if: steps.download.outcome == 'failure'
         run: python notify/notify.py --error "Weather data download failed — all Ecowitt xlsx files returned errors. Check ECOWITT_DEVICE_ID / ECOWITT_AUTHORIZE secrets and the station status."
         env:
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
+          RESEND_API_KEY:      ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL:        ${{ secrets.NOTIFY_EMAIL }}
+          NOTIFY_FROM_EMAIL:   ${{ secrets.NOTIFY_FROM_EMAIL }}
 
       - name: Stitch xlsx → database
         env:
@@ -88,9 +89,10 @@ jobs:
         if: "github.event.schedule == '0 4 * * *'"
         run: python notify/notify.py
         env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          NOTIFY_EMAIL:   ${{ secrets.NOTIFY_EMAIL }}
+          SUPABASE_DB_URL:   ${{ secrets.SUPABASE_DB_URL }}
+          RESEND_API_KEY:    ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL:      ${{ secrets.NOTIFY_EMAIL }}
+          NOTIFY_FROM_EMAIL: ${{ secrets.NOTIFY_FROM_EMAIL }}
 
       - name: Render HTML
         env:

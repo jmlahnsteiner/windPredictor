@@ -57,6 +57,11 @@ def _format_subject_date(today: str) -> str:
     return f"{dt.strftime('%A')}, {dt.day} {dt.strftime('%B %Y')}"
 
 
+def _from_address() -> str:
+    """Return the from address, preferring NOTIFY_FROM_EMAIL over the Resend sandbox default."""
+    return os.environ.get("NOTIFY_FROM_EMAIL", "WindPredictor <onboarding@resend.dev>")
+
+
 def send_error_email(message: str) -> None:
     """Send a pipeline error alert email."""
     api_key = os.environ.get("RESEND_API_KEY")
@@ -76,7 +81,7 @@ def send_error_email(message: str) -> None:
     resend.api_key = api_key
     try:
         resend.Emails.send({
-            "from": "WindPredictor <onboarding@resend.dev>",
+            "from": _from_address(),
             "to": [notify_email],
             "subject": subject,
             "text": body,
@@ -138,7 +143,7 @@ def main() -> None:
     resend.api_key = api_key
     try:
         resend.Emails.send({
-            "from": "WindPredictor <onboarding@resend.dev>",
+            "from": _from_address(),
             "to": [notify_email],
             "subject": subject,
             "text": body,
