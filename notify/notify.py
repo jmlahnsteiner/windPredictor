@@ -1,6 +1,7 @@
-"""notify/notify.py — Good-day email notification."""
+"""notify/notify.py — Good-day email notification and pipeline error alerts."""
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 import tomllib
@@ -56,7 +57,47 @@ def _format_subject_date(today: str) -> str:
     return f"{dt.strftime('%A')}, {dt.day} {dt.strftime('%B %Y')}"
 
 
+def send_error_email(message: str) -> None:
+    """Send a pipeline error alert email."""
+    api_key = os.environ.get("RESEND_API_KEY")
+    if not api_key:
+        print("ERROR: RESEND_API_KEY environment variable is not set.")
+        sys.exit(1)
+
+    notify_email = os.environ.get("NOTIFY_EMAIL")
+    if not notify_email:
+        print("ERROR: NOTIFY_EMAIL environment variable is not set.")
+        sys.exit(1)
+
+    today = date.today().isoformat()
+    subject = f"⚠️ WindPredictor pipeline error — {_format_subject_date(today)}"
+    body = f"The WindPredictor forecast pipeline encountered an error:\n\n{message}\n"
+
+    resend.api_key = api_key
+    try:
+        resend.Emails.send({
+            "from": "WindPredictor <onboarding@resend.dev>",
+            "to": [notify_email],
+            "subject": subject,
+            "text": body,
+        })
+    except Exception as exc:
+        print(f"ERROR: Resend API call failed: {exc}")
+        sys.exit(1)
+
+    print(f"Error notification sent to {notify_email}: {subject}")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--error", metavar="MESSAGE",
+                        help="Send a pipeline error alert instead of a good-day notification")
+    args = parser.parse_args()
+
+    if args.error:
+        send_error_email(args.error)
+        return
+
     # 1-2. Fail fast: check required env vars before any file I/O
     api_key = os.environ.get("RESEND_API_KEY")
     if not api_key:
