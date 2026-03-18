@@ -90,10 +90,12 @@ def download_date(
         data = resp.json()
         xlsx_url = data["url"]
     except Exception:
+        print(f"  [!] {date_str}: export_excel response not valid JSON "
+              f"(status={resp.status_code}, body={resp.text[:200]!r})")
         date_compact = date_str.replace("-", "")
         edate_compact = edate.replace(":", "")
         xlsx_url = (
-            f"https://www.ecowitt.net/uploads/156707/"
+            f"https://www.ecowitt.net/uploads/{device_id}/"
             f"Wetterstation%28{date_compact}0000-{date_compact}{edate_compact}%29.xlsx"
         )
 
@@ -177,3 +179,5 @@ if __name__ == "__main__":
     results = download_range(start, end)
     n_ok = sum(results.values())
     print(f"\nDone: {n_ok}/{len(results)} downloaded successfully")
+    if n_ok == 0 and len(results) > 0:
+        sys.exit(1)
