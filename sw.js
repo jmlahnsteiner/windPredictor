@@ -35,10 +35,10 @@ self.addEventListener('fetch', (event) => {
   const isHTML = url.pathname === '/' || url.pathname.endsWith('index.html') || url.pathname.endsWith('/');
 
   if (isHTML) {
-    // Network-first for index.html — the forecast data is baked in at render time,
-    // so we always want the freshest version. Fall back to cache when offline.
+    // Network-first for index.html — bypass HTTP cache so we always get the
+    // freshest forecast. Fall back to cache when offline.
     event.respondWith(
-      fetch(event.request).then((networkResponse) => {
+      fetch(event.request, { cache: 'no-cache' }).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           const clone = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));

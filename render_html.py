@@ -600,7 +600,10 @@ def build_html(
     </footer>
   </div>
   <script>
-    if ('serviceWorker' in navigator) {{ navigator.serviceWorker.register('sw.js'); }}
+    if ('serviceWorker' in navigator) {{
+      navigator.serviceWorker.register('sw.js');
+      navigator.serviceWorker.addEventListener('controllerchange', () => window.location.reload());
+    }}
   </script>
 </body>
 </html>"""
