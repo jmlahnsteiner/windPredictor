@@ -156,10 +156,22 @@ def record_outcome(
         con.close()
 
 
-def backfill_outcomes(daily_quality: "pd.Series", db_path: str = DEFAULT_SQLITE) -> int:
+def backfill_outcomes(
+    daily_quality: "pd.Series",
+    speed_fracs: "pd.Series | None" = None,
+    db_path: str = DEFAULT_SQLITE,
+) -> int:
     """
     Backfill the outcomes table from a pd.Series indexed by datetime.date.
-    daily_quality values are fractions (0-1); threshold from the first prediction row is used.
+
+    daily_quality   — quality series (0-1) with direction zeroing applied;
+                      used to determine actual_good.
+    speed_fracs     — raw speed+temp fraction per date (no direction zeroing);
+                      used for actual_frac so the stored value reflects what
+                      was physically observed.  Falls back to daily_quality when
+                      not supplied (preserves old behaviour).
+
+    threshold from the first prediction row is used.
     Returns the number of rows upserted.
     """
     if daily_quality.empty:
@@ -175,7 +187,11 @@ def backfill_outcomes(daily_quality: "pd.Series", db_path: str = DEFAULT_SQLITE)
         threshold = row[0] if row else 0.30
 
         rows = [
-            (str(d), int(float(v) >= threshold), float(v))
+            (
+                str(d),
+                int(float(v) >= threshold),
+                float(speed_fracs[d]) if speed_fracs is not None and d in speed_fracs.index else float(v),
+            )
             for d, v in daily_quality.items()
         ]
 
