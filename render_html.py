@@ -189,7 +189,7 @@ def build_html(
 
         cards_html = hero_html + compact_grid_html
 
-    history_foldout    = history_html(db_path or DEFAULT_SQLITE)
+    history_foldout    = history_html(db_path or DEFAULT_SQLITE, snapshots=predictions, cfg=cfg)
     methodology_foldout = _methodology_html(cfg)
 
     generated = datetime.now().strftime("%-d %B %Y, %H:%M")
@@ -552,6 +552,38 @@ def build_html(
       letter-spacing: .05em;
       margin-top: 4px;
       text-align: center;
+    }}
+
+    /* ── History header + toggle ── */
+    .hist-header {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }}
+    .hist-toggle {{
+      display: flex;
+      gap: 3px;
+      align-self: flex-end;
+      flex-shrink: 0;
+    }}
+    .hist-btn {{
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      color: var(--c-muted);
+      border-radius: 5px;
+      padding: 3px 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }}
+    .hist-btn.active {{
+      background: var(--c-accent);
+      border-color: var(--c-accent);
+      color: #0f1117;
     }}
 
     /* ── About / methodology ── */
