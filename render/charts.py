@@ -473,6 +473,10 @@ def history_chart_svg(
     if window_wind_by_date:
         SEG_W, SEG_H, SEG_GAP = 2.5, 8.0, 0.5
         for i, r in enumerate(rows):
+            # Only show the strip when a full outcome has been recorded,
+            # so the bars reflect complete window data rather than a partial snapshot.
+            if r.get("actual_frac") is None:
+                continue
             ww = window_wind_by_date.get(r["predicting_date"])
             if not ww:
                 continue

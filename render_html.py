@@ -52,8 +52,16 @@ def _methodology_html(cfg: dict) -> str:
             <dd>Observed wind from a local Ecowitt weather station. Wind, gust, cloud cover, and boundary-layer height forecasts from Open-Meteo NWP (no API key required).</dd>
           </div>
           <div class="about-row">
+            <dt>Actual conditions</dt>
+            <dd>After each day's sailing window closes, hourly station readings are evaluated: the fraction of hours with wind in the {wmin}–{wmax} kn range is stored as the observed outcome. Once recorded, the day card shows "observed" instead of a model probability. Today's card switches to observed once {we} passes.</dd>
+          </div>
+          <div class="about-row">
             <dt>History chart</dt>
-            <dd>Cyan dashed = model probability each day. Green solid = actual fraction of the sailing window with good wind (recorded after the day passes). The dashed threshold line marks the {int(thr * 100)}% good-day cutoff.</dd>
+            <dd>Cyan dashed = model probability at prediction time. Green solid = observed fraction of the sailing window with good wind (filled in after the day passes). The horizontal dashed line marks the {int(thr * 100)}% good-day threshold. Small coloured bars below each date show hour-by-hour quality within the sailing window: green = wind in range, dark = off-range.</dd>
+          </div>
+          <div class="about-row">
+            <dt>Accuracy metrics</dt>
+            <dd><b>Days evaluated</b>: days with both a prediction and a recorded outcome (window has passed). <b>Accuracy</b>: share of those days the model called correctly (good vs not good). <b>Precision</b>: of days predicted good, how many actually were — low precision means false alarms. <b>Recall</b>: of days that were actually good, how many the model caught — low recall means missed opportunities.</dd>
           </div>
         </dl>
       </div>
