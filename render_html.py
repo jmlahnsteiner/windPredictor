@@ -159,10 +159,6 @@ def build_html(
           </div>
         </div>
       </div>
-      <div class="meta-row">
-        {exp_chips}
-        <span class="meta-chip">p={d['pct']}%{d['lead_note']}</span>
-      </div>
       {wind_svg(d['headline'].get("window_wind", {}), cfg)}
       {stats_html(d['headline'], cfg)}
     </div>"""
