@@ -8,7 +8,12 @@ import tomllib
 from datetime import date, datetime
 from pathlib import Path
 
+# Ensure project root is on sys.path so `model` package is importable
+# when this script is run directly (python notify/notify.py).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import resend  # top-level import — makes monkeypatching reliable in tests
+from model.predict import load_forecast_snapshots
 
 try:
     from dotenv import load_dotenv
@@ -114,6 +119,8 @@ def main() -> None:
         print("ERROR: NOTIFY_EMAIL environment variable is not set.")
         sys.exit(1)
 
+    from_email = os.environ.get("NOTIFY_FROM_EMAIL", "WindPredictor <onboarding@resend.dev>")
+
     # 3. Load config
     with open(Path("config.toml"), "rb") as f:
         cfg = tomllib.load(f)
@@ -122,7 +129,6 @@ def main() -> None:
     window_end = sailing.get("window_end", "16:00")
 
     # 4. Load forecast snapshots from DB
-    from model.predict import load_forecast_snapshots
     predictions = load_forecast_snapshots()
 
     # 5-6. Find today's latest entry
@@ -143,7 +149,7 @@ def main() -> None:
     resend.api_key = api_key
     try:
         resend.Emails.send({
-            "from": _from_address(),
+            "from": from_email,
             "to": [notify_email],
             "subject": subject,
             "text": body,
