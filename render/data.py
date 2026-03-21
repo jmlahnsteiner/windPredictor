@@ -114,12 +114,19 @@ def stats_html(headline: dict, cfg: dict) -> str:
     return '<div class="stats-block">' + "".join(rows) + "</div>\n"
 
 
-def history_html(db_path: str, days: int = 30) -> str:
+def history_html(
+    db_path: str,
+    days: int = 14,
+    snapshots: list | None = None,
+    cfg: dict | None = None,
+) -> str:
     """
     Render prediction accuracy as a <details> foldout with stat cards + time-series chart.
-    days: look-back window for the chart. Accuracy summary uses all available data.
+    Includes a 1w/2w interactive toggle (rendered as two static SVGs).
+    snapshots: full list of forecast snapshot dicts (for intraday window_wind data).
     Returns '' if no history is available.
     """
+    from datetime import date, timedelta
     from utils.db import backend, DEFAULT_SQLITE
     from model.history import load_history, accuracy_summary
     from render.charts import history_chart_svg
@@ -129,29 +136,50 @@ def history_html(db_path: str, days: int = 30) -> str:
     if bk == "sqlite" and not os.path.exists(actual_path):
         return ""
 
-    df = load_history(db_path=actual_path, days=days)
+    # Load up to 14 days; subset to 7 for the short view
+    df = load_history(db_path=actual_path, days=14)
     if df.empty:
         return ""
 
-    # One row per predicting_date using last snapshot
     df = df.sort_values("snapshot_dt").groupby("predicting_date").last().reset_index()
     df = df.sort_values("predicting_date")
 
     threshold = float(df["threshold"].iloc[-1]) if len(df) > 0 else 0.3
 
-    # Build rows for chart
-    rows = []
-    for _, row in df.iterrows():
-        af = row["actual_frac"]
-        rows.append({
-            "predicting_date": row["predicting_date"],
-            "probability": float(row["probability"]),
-            "actual_frac": float(af) if (af is not None and af == af) else None,
-        })
+    def _rows(dataframe):
+        result = []
+        for _, row in dataframe.iterrows():
+            af = row["actual_frac"]
+            result.append({
+                "predicting_date": row["predicting_date"],
+                "probability":     float(row["probability"]),
+                "actual_frac":     float(af) if (af is not None and af == af) else None,
+            })
+        return result
 
-    chart = history_chart_svg(rows, threshold=threshold)
+    cutoff_7 = (date.today() - timedelta(days=7)).isoformat()
+    df7  = df[df["predicting_date"] >= cutoff_7]
+    rows_14 = _rows(df)
+    rows_7  = _rows(df7)
 
-    # All-time accuracy summary (days=None → no time filter)
+    # Build window_wind lookup from snapshot payloads (for intraday strips)
+    wind_by_date: dict[str, dict] = {}
+    if snapshots:
+        from collections import defaultdict as _dd
+        snaps_by_date = _dd(list)
+        for s in snapshots:
+            if s.get("predicting_date") and s.get("window_wind"):
+                snaps_by_date[s["predicting_date"]].append(s)
+        for d, snaps in snaps_by_date.items():
+            best = max(snaps, key=lambda x: x.get("snapshot", ""))
+            wind_by_date[d] = best["window_wind"]
+
+    chart_7  = history_chart_svg(rows_7,  threshold=threshold, window_wind_by_date=wind_by_date, cfg=cfg)
+    chart_14 = history_chart_svg(rows_14, threshold=threshold, window_wind_by_date=wind_by_date, cfg=cfg)
+
+    has_toggle = len(rows_14) > len(rows_7) and len(rows_7) >= 2
+
+    # All-time accuracy summary
     summary = accuracy_summary(db_path=actual_path, days=None)
 
     stat_cards = ""
@@ -184,11 +212,37 @@ def history_html(db_path: str, days: int = 30) -> str:
             )
         stat_cards = f'<div class="hist-stats">{stat_cards}</div>'
 
+    if has_toggle:
+        toggle_html = (
+            '<div class="hist-toggle">'
+            '<button class="hist-btn active" id="hb7" onclick="histView(7)">1w</button>'
+            '<button class="hist-btn" id="hb14" onclick="histView(14)">2w</button>'
+            '</div>'
+        )
+        chart_html = (
+            f'<div id="hist-d7">{chart_7}</div>'
+            f'<div id="hist-d14" style="display:none">{chart_14}</div>'
+            '<script>function histView(d){'
+            'document.getElementById("hist-d7").style.display=d===7?"":"none";'
+            'document.getElementById("hist-d14").style.display=d===14?"":"none";'
+            'document.getElementById("hb7").classList.toggle("active",d===7);'
+            'document.getElementById("hb14").classList.toggle("active",d===14);'
+            '}</script>'
+        )
+        header_hint = ""
+    else:
+        toggle_html = ""
+        chart_html  = chart_7 if len(rows_7) >= 2 else chart_14
+        header_hint = '<span class="foldout-hint">(last 7d)</span>'
+
     return f"""
     <details class="foldout">
-      <summary class="foldout-summary">📊 Prediction history <span class="foldout-hint">(last {days}d)</span></summary>
+      <summary class="foldout-summary">📊 Prediction history {header_hint}</summary>
       <div class="foldout-body">
-        {stat_cards}
-        {chart}
+        <div class="hist-header">
+          {stat_cards}
+          {toggle_html}
+        </div>
+        {chart_html}
       </div>
     </details>"""

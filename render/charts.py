@@ -326,12 +326,48 @@ def wind_svg(window_wind: dict, cfg: dict) -> str:
     return "\n".join(p)
 
 
-def history_chart_svg(rows: list[dict], threshold: float = 0.3) -> str:
+def _hourly_quality(window_wind: dict, cfg: dict | None) -> list[bool | None]:
+    """
+    Return one entry per sailing-window hour: True=good, False=off-range, None=no data.
+    """
+    sc = (cfg or {}).get("sailing", {})
+    wind_min = sc.get("wind_speed_min", 2.0)
+    wind_max = sc.get("wind_speed_max", 10.0)
+    ws_h = int(sc.get("window_start", "08:00").split(":")[0])
+    we_h = int(sc.get("window_end",   "16:00").split(":")[0])
+
+    times  = window_wind.get("times", [])
+    speeds = window_wind.get("speeds_kn", [])
+
+    by_hour: dict[int, list[float]] = {}
+    for t, s in zip(times, speeds):
+        h = int(t.split(":")[0])
+        if ws_h <= h < we_h:
+            by_hour.setdefault(h, []).append(s)
+
+    result: list[bool | None] = []
+    for h in range(ws_h, we_h):
+        readings = by_hour.get(h)
+        if not readings:
+            result.append(None)
+        else:
+            result.append(wind_min <= (sum(readings) / len(readings)) <= wind_max)
+    return result
+
+
+def history_chart_svg(
+    rows: list[dict],
+    threshold: float = 0.3,
+    window_wind_by_date: dict | None = None,
+    cfg: dict | None = None,
+) -> str:
     """
     Time-series chart: predicted probability vs actual wind quality over past days.
     rows: list of dicts with keys:
         predicting_date (str YYYY-MM-DD), probability (float),
         actual_frac (float | None — None means outcome not yet known).
+    window_wind_by_date: optional dict mapping date → window_wind, used to draw
+        an intraday hourly-quality strip below the x-axis.
     Returns SVG string, or '' if fewer than 2 rows.
     """
     rows = sorted(rows, key=lambda r: r["predicting_date"])
@@ -339,10 +375,15 @@ def history_chart_svg(rows: list[dict], threshold: float = 0.3) -> str:
     if n < 2:
         return ""
 
-    VW, VH = 620, 130
+    STRIP_H   = 10   # height of the intraday strip below date labels
+    VW, VH    = 620, 144   # +14 vs original 130 to fit the strip
     PAD_L, PAD_R, PAD_T, PAD_B = 36, 72, 14, 22
     cw = VW - PAD_L - PAD_R
-    ch = VH - PAD_T - PAD_B
+    ch = VH - STRIP_H - PAD_T - PAD_B   # chart area height unchanged
+
+    CHART_BOTTOM = PAD_T + ch          # y where chart area ends (= start of x-axis)
+    LABEL_Y      = CHART_BOTTOM + PAD_B - 2    # date label baseline (same relative position)
+    STRIP_Y      = LABEL_Y + 3                 # intraday strip starts just below labels
 
     def tx(i: int) -> float:
         return PAD_L + (i / max(n - 1, 1)) * cw
@@ -416,7 +457,7 @@ def history_chart_svg(rows: list[dict], threshold: float = 0.3) -> str:
     for i, r in enumerate(rows):
         x = tx(i)
         out.append(
-            f'<line x1="{x:.1f}" y1="{VH - PAD_B:.1f}" x2="{x:.1f}" y2="{VH - PAD_B + 3:.1f}" '
+            f'<line x1="{x:.1f}" y1="{CHART_BOTTOM:.1f}" x2="{x:.1f}" y2="{CHART_BOTTOM + 3:.1f}" '
             f'stroke="#2d3555" stroke-width="0.5"/>'
         )
         if i in shown_idx:
@@ -424,9 +465,34 @@ def history_chart_svg(rows: list[dict], threshold: float = 0.3) -> str:
             label = dt_obj.strftime("%-d %b")
             anchor = "start" if i == 0 else ("end" if i == n - 1 else "middle")
             out.append(
-                f'<text x="{x:.1f}" y="{VH - 2}" font-size="7" text-anchor="{anchor}" '
+                f'<text x="{x:.1f}" y="{LABEL_Y:.1f}" font-size="7" text-anchor="{anchor}" '
                 f'fill="#4b5675" font-family="sans-serif">{label}</text>'
             )
+
+    # Intraday hourly-quality strip
+    if window_wind_by_date:
+        SEG_W, SEG_H, SEG_GAP = 2.5, 8.0, 0.5
+        for i, r in enumerate(rows):
+            # Only show the strip when a full outcome has been recorded,
+            # so the bars reflect complete window data rather than a partial snapshot.
+            if r.get("actual_frac") is None:
+                continue
+            ww = window_wind_by_date.get(r["predicting_date"])
+            if not ww:
+                continue
+            hourly = _hourly_quality(ww, cfg)
+            if not hourly:
+                continue
+            nh      = len(hourly)
+            total_w = nh * SEG_W + (nh - 1) * SEG_GAP
+            x0      = tx(i) - total_w / 2
+            for j, quality in enumerate(hourly):
+                sx = x0 + j * (SEG_W + SEG_GAP)
+                color = "#22c55e" if quality is True else ("#334155" if quality is False else "#1e2436")
+                out.append(
+                    f'<rect x="{sx:.1f}" y="{STRIP_Y:.1f}" width="{SEG_W}" height="{SEG_H}" '
+                    f'fill="{color}" rx="0.5"/>'
+                )
 
     # Legend (top-left inside chart area)
     lx, ly = PAD_L + 6, PAD_T + 9

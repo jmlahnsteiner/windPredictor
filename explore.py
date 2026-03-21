@@ -1,8 +1,9 @@
 """
 explore.py — Visualise historical data and trained model.
 
-Reads from data.parquet and model/weights.joblib. All plots are saved
-to PNG; nothing is displayed interactively (safe for headless Pi use).
+Reads weather readings from Supabase (or local.db when SUPABASE_DB_URL is
+unset) and model/weights.joblib. All plots are saved to PNG; nothing is
+displayed interactively (safe for headless Pi use).
 
 Usage:
     python explore.py                   # all panels → exploration.png
@@ -17,7 +18,6 @@ import sys
 
 import matplotlib.path as _mpath
 import numpy as np
-import tomllib
 
 
 # ── matplotlib deepcopy fix for Python 3.14 ──────────────────────────────────
@@ -46,6 +46,8 @@ import seaborn as sns
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model.features import _circular_std, compute_daily_target
+from input.weather_store import load_weather_readings
+from utils.config import load_config
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(_HERE, "config.toml")
@@ -309,18 +311,15 @@ def main() -> None:
     parser.add_argument("--config", default=DEFAULT_CONFIG, help="Path to config.toml")
     args = parser.parse_args()
 
-    with open(args.config, "rb") as f:
-        cfg = tomllib.load(f)
+    cfg = load_config(args.config)
 
-    root         = os.path.dirname(os.path.abspath(args.config))
-    parquet_path = os.path.join(root, cfg["paths"]["data_parquet"])
-    model_path   = os.path.join(root, cfg["paths"]["model_file"])
+    root       = os.path.dirname(os.path.abspath(args.config))
+    model_path = os.path.join(root, cfg["paths"]["model_file"])
 
-    if not os.path.exists(parquet_path):
-        print(f"No data found at {parquet_path}. Run input/stitcher.py first.")
+    df = load_weather_readings()
+    if df.empty:
+        print("No weather readings found. Run input/stitcher.py first.")
         sys.exit(1)
-
-    df = pd.read_parquet(parquet_path)
     print(f"Loaded {len(df):,} rows  ({df.index.min().date()} → {df.index.max().date()})")
 
     if args.data:

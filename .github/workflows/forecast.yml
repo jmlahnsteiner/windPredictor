@@ -41,6 +41,8 @@ jobs:
           restore-keys: wind-model-
 
       - name: Download weather data
+        id: download
+        continue-on-error: true
         env:
           SUPABASE_DB_URL:   ${{ secrets.SUPABASE_DB_URL }}
           ECOWITT_DEVICE_ID: ${{ secrets.ECOWITT_DEVICE_ID }}
@@ -53,6 +55,14 @@ jobs:
             START=$(date -u -d '90 days ago' '+%Y-%m-%d')
           fi
           python input/scraper.py "$START" "$TODAY"
+
+      - name: Notify on download failure
+        if: steps.download.outcome == 'failure'
+        run: python notify/notify.py --error "Weather data download failed — all Ecowitt xlsx files returned errors. Check ECOWITT_DEVICE_ID / ECOWITT_AUTHORIZE secrets and the station status."
+        env:
+          RESEND_API_KEY:      ${{ secrets.RESEND_API_KEY }}
+          NOTIFY_EMAIL:        ${{ secrets.NOTIFY_EMAIL }}
+          NOTIFY_FROM_EMAIL:   ${{ secrets.NOTIFY_FROM_EMAIL }}
 
       - name: Stitch xlsx → database
         env:
