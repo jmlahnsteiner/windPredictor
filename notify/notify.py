@@ -122,7 +122,8 @@ def main() -> None:
     from_email = os.environ.get("NOTIFY_FROM_EMAIL", "WindPredictor <onboarding@resend.dev>")
 
     # 3. Load config
-    with open(Path("config.toml"), "rb") as f:
+    _root = Path(__file__).resolve().parent.parent
+    with open(_root / "config.toml", "rb") as f:
         cfg = tomllib.load(f)
     sailing = cfg.get("sailing", {})
     window_start = sailing.get("window_start", "08:00")
