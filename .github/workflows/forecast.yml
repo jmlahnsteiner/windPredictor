@@ -58,6 +58,7 @@ jobs:
 
       - name: Notify on download failure
         if: steps.download.outcome == 'failure'
+        continue-on-error: true
         run: python notify/notify.py --error "Weather data download failed — all Ecowitt xlsx files returned errors. Check ECOWITT_DEVICE_ID / ECOWITT_AUTHORIZE secrets and the station status."
         env:
           RESEND_API_KEY:      ${{ secrets.RESEND_API_KEY }}
@@ -87,6 +88,7 @@ jobs:
 
       - name: Send good-day notification
         if: "github.event.schedule == '0 4 * * *'"
+        continue-on-error: true
         run: python notify/notify.py
         env:
           SUPABASE_DB_URL:    ${{ secrets.SUPABASE_DB_URL }}

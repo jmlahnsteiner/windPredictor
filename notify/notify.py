@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import resend  # top-level import — makes monkeypatching reliable in tests
+from model.predict import load_forecast_snapshots
 
 try:
     from dotenv import load_dotenv
@@ -128,7 +129,6 @@ def main() -> None:
     window_end = sailing.get("window_end", "16:00")
 
     # 4. Load forecast snapshots from DB
-    from model.predict import load_forecast_snapshots
     predictions = load_forecast_snapshots()
 
     # 5-6. Find today's latest entry
