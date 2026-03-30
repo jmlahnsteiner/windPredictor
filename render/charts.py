@@ -469,30 +469,31 @@ def history_chart_svg(
                 f'fill="#4b5675" font-family="sans-serif">{label}</text>'
             )
 
-    # Intraday hourly-quality strip
-    if window_wind_by_date:
-        SEG_W, SEG_H, SEG_GAP = 2.5, 8.0, 0.5
-        for i, r in enumerate(rows):
-            # Only show the strip when a full outcome has been recorded,
-            # so the bars reflect complete window data rather than a partial snapshot.
-            if r.get("actual_frac") is None:
-                continue
-            ww = window_wind_by_date.get(r["predicting_date"])
-            if not ww:
-                continue
-            hourly = _hourly_quality(ww, cfg)
-            if not hourly:
-                continue
-            nh      = len(hourly)
-            total_w = nh * SEG_W + (nh - 1) * SEG_GAP
-            x0      = tx(i) - total_w / 2
-            for j, quality in enumerate(hourly):
-                sx = x0 + j * (SEG_W + SEG_GAP)
-                color = "#22c55e" if quality is True else ("#334155" if quality is False else "#1e2436")
-                out.append(
-                    f'<rect x="{sx:.1f}" y="{STRIP_Y:.1f}" width="{SEG_W}" height="{SEG_H}" '
-                    f'fill="{color}" rx="0.5"/>'
-                )
+    # Intraday hourly-quality strip — shown for every day with a known outcome
+    sc = (cfg or {}).get("sailing", {})
+    _ws_h = int(sc.get("window_start", "08:00").split(":")[0])
+    _we_h = int(sc.get("window_end",   "16:00").split(":")[0])
+    _n_hours = max(_we_h - _ws_h, 1)
+    SEG_W, SEG_H, SEG_GAP = 2.5, 8.0, 0.5
+    for i, r in enumerate(rows):
+        # Only show the strip when a full outcome has been recorded,
+        # so the bars reflect complete window data rather than a partial snapshot.
+        if r.get("actual_frac") is None:
+            continue
+        ww = (window_wind_by_date or {}).get(r["predicting_date"])
+        hourly = _hourly_quality(ww, cfg) if ww else [None] * _n_hours
+        if not hourly:
+            hourly = [None] * _n_hours
+        nh      = len(hourly)
+        total_w = nh * SEG_W + (nh - 1) * SEG_GAP
+        x0      = tx(i) - total_w / 2
+        for j, quality in enumerate(hourly):
+            sx = x0 + j * (SEG_W + SEG_GAP)
+            color = "#22c55e" if quality is True else ("#334155" if quality is False else "#2a3050")
+            out.append(
+                f'<rect x="{sx:.1f}" y="{STRIP_Y:.1f}" width="{SEG_W}" height="{SEG_H}" '
+                f'fill="{color}" rx="0.5"/>'
+            )
 
     # Legend (top-left inside chart area)
     lx, ly = PAD_L + 6, PAD_T + 9

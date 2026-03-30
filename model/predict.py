@@ -510,7 +510,7 @@ if __name__ == "__main__":
     # ── Persist direct predictions to history DB ───────────────────────────────
     try:
         from model.history import record_predictions, backfill_outcomes
-        from model.features import compute_daily_target, compute_speed_frac
+        from model.features import compute_daily_target
 
         cfg = load_config(config_path)
         direct = [r for r in results
@@ -519,8 +519,7 @@ if __name__ == "__main__":
         print(f"History: wrote {n_written} row(s)", flush=True)
 
         daily_quality = compute_daily_target(df, cfg)
-        speed_fracs = compute_speed_frac(df, cfg)
-        n_outcomes = backfill_outcomes(daily_quality, speed_fracs)
+        n_outcomes = backfill_outcomes(daily_quality)
         print(f"History: upserted {n_outcomes} outcome(s)", flush=True)
     except Exception as exc:
         print(f"  [!] History recording skipped: {exc}", file=sys.stderr)
