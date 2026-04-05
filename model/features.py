@@ -303,13 +303,7 @@ def extract_snapshot_features(
     }
 
     # ── NWP features ─────────────────────────────────────────────────────────
-    _NWP_KEYS_LOCAL = (
-        "nwp_wind_speed_mean", "nwp_wind_speed_max", "nwp_wind_gust_max",
-        "nwp_wind_dir_sin", "nwp_wind_dir_cos", "nwp_dir_consistency",
-        "nwp_cloud_cover_mean", "nwp_blh_mean", "nwp_direct_radiation_mean",
-    )
-
-    nwp_feats = {k: np.nan for k in _NWP_KEYS_LOCAL}
+    nwp_feats = {k: np.nan for k in _NWP_KEYS}
 
     if nwp_df is not None and not nwp_df.empty and cfg is not None:
         sc = cfg["sailing"]
