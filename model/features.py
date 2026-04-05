@@ -13,6 +13,14 @@ import numpy as np
 import pandas as pd
 
 
+# Module-level NWP feature key tuple (importable by features_sequence.py)
+_NWP_KEYS = (
+    "nwp_wind_speed_mean", "nwp_wind_speed_max", "nwp_wind_gust_max",
+    "nwp_wind_dir_sin", "nwp_wind_dir_cos", "nwp_dir_consistency",
+    "nwp_cloud_cover_mean", "nwp_blh_mean", "nwp_direct_radiation_mean",
+)
+
+
 # ---------------------------------------------------------------------------
 # Low-level helpers
 # ---------------------------------------------------------------------------
@@ -168,6 +176,8 @@ def _target_date(snap_dt: pd.Timestamp, window_end: str) -> datetime.date:
 def extract_snapshot_features(
     df: pd.DataFrame,
     snap_dt: pd.Timestamp,
+    nwp_df: Optional[pd.DataFrame] = None,
+    cfg: Optional[dict] = None,
 ) -> Optional[dict]:
     """
     Extract a feature vector from df at a specific snapshot datetime.
@@ -212,7 +222,7 @@ def extract_snapshot_features(
 
     wind_dir = current.get("wind_direction", np.nan)
 
-    return {
+    feats = {
         # Time context
         "snapshot_hour": snap_dt.hour,
         "day_of_week":   snap_dt.dayofweek,
@@ -315,6 +325,54 @@ def extract_snapshot_features(
         ),
     }
 
+    # ── NWP features ─────────────────────────────────────────────────────────
+    nwp_feats = {k: np.nan for k in _NWP_KEYS}
+
+    if nwp_df is not None and not nwp_df.empty and cfg is not None:
+        sc = cfg["sailing"]
+        target_date = _target_date(snap_dt, sc["window_end"])
+
+        mask = pd.Series(nwp_df.index, dtype=object).apply(
+            lambda t: t.date() == target_date
+        ).values
+        day_nwp = nwp_df.iloc[mask]
+
+        if not day_nwp.empty:
+            window_nwp = day_nwp.between_time(sc["window_start"], sc["window_end"])
+            if len(window_nwp) >= 1:
+                ws  = window_nwp["wind_speed"].dropna()
+                wg  = window_nwp["wind_gust"].dropna()
+                wd  = window_nwp["wind_direction"].dropna()
+                cc  = window_nwp["cloud_cover"].dropna()
+                blh = window_nwp["blh"].dropna()
+                dr  = window_nwp["direct_radiation"].dropna()
+
+                if not wd.empty:
+                    rad = np.radians(wd.to_numpy())
+                    sin_m = float(np.sin(rad).mean())
+                    cos_m = float(np.cos(rad).mean())
+                    mag = max(np.hypot(sin_m, cos_m), 1e-9)
+                    nwp_feats["nwp_wind_dir_sin"] = sin_m / mag
+                    nwp_feats["nwp_wind_dir_cos"] = cos_m / mag
+                    nwp_feats["nwp_dir_consistency"] = (
+                        _circular_std(wd) if len(wd) >= 2 else np.nan
+                    )
+
+                if not ws.empty:
+                    nwp_feats["nwp_wind_speed_mean"] = float(ws.mean())
+                    nwp_feats["nwp_wind_speed_max"]  = float(ws.max())
+                if not wg.empty:
+                    nwp_feats["nwp_wind_gust_max"] = float(wg.max())
+                if not cc.empty:
+                    nwp_feats["nwp_cloud_cover_mean"] = float(cc.mean())
+                if not blh.empty:
+                    nwp_feats["nwp_blh_mean"] = float(blh.mean())
+                if not dr.empty:
+                    nwp_feats["nwp_direct_radiation_mean"] = float(dr.mean())
+
+    feats.update(nwp_feats)
+    return feats
+
 
 # ---------------------------------------------------------------------------
 # Training pair construction
@@ -323,6 +381,7 @@ def extract_snapshot_features(
 def build_training_pairs(
     df: pd.DataFrame,
     cfg: dict,
+    nwp_df: Optional[pd.DataFrame] = None,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """
     Build (X, y) training pairs from historical data.
@@ -363,7 +422,7 @@ def build_training_pairs(
             if tgt_date not in daily_quality.index:
                 continue
 
-            features = extract_snapshot_features(df, snap_dt)
+            features = extract_snapshot_features(df, snap_dt, nwp_df=nwp_df, cfg=cfg)
             if features is None:
                 continue
 

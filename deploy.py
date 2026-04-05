@@ -100,6 +100,29 @@ def step_predict(ref_date: date | None) -> None:
     print(f"History: upserted {n_outcomes} outcome(s)", flush=True)
 
 
+def step_backfill_nwp(start: str, end: str) -> None:
+    _banner(f"[NWP] Backfilling ERA5 NWP data  ({start} → {end})")
+    from input.open_meteo_historical import fetch_historical_range
+    from input.nwp_store import upsert_nwp_readings
+    import datetime
+
+    cfg = _load_config()
+    loc = cfg.get("location", {})
+    lat, lon = loc.get("lat"), loc.get("lon")
+    if lat is None or lon is None:
+        raise RuntimeError("[location] lat/lon not set in config.toml")
+
+    df = fetch_historical_range(
+        lat, lon,
+        datetime.date.fromisoformat(start),
+        datetime.date.fromisoformat(end),
+    )
+    if df.empty:
+        raise RuntimeError("No NWP data returned from ERA5 API")
+    n = upsert_nwp_readings(df)
+    print(f"Upserted {n} NWP rows", flush=True)
+
+
 def step_render() -> None:
     _banner("[4/4] Rendering index.html")
     from render_html import build_html
@@ -130,11 +153,20 @@ def main() -> None:
     parser.add_argument("--no-download", action="store_true")
     parser.add_argument("--no-stitch",   action="store_true")
     parser.add_argument("--preview",     action="store_true", help="Open index.html in browser")
+    parser.add_argument(
+        "--backfill-nwp",
+        nargs=2, metavar=("START", "END"),
+        help="Fetch ERA5 NWP history for date range (YYYY-MM-DD YYYY-MM-DD)",
+    )
     args = parser.parse_args()
 
     ref_date: date | None = None
     if args.date:
         ref_date = datetime.strptime(args.date, "%Y-%m-%d").date()
+
+    if args.backfill_nwp:
+        step_backfill_nwp(args.backfill_nwp[0], args.backfill_nwp[1])
+        return
 
     try:
         if not args.no_download:

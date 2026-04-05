@@ -12,7 +12,7 @@ import sys
 import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.model_selection import TimeSeriesSplit, cross_val_score
 
 # Allow running from project root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -36,8 +36,20 @@ def train(config_path: str = DEFAULT_CONFIG) -> None:
         return
     print(f"Loaded {len(df):,} rows  ({df.index.min().date()} → {df.index.max().date()})")
 
+    # --- Load NWP data ---
+    print("Loading NWP readings from database …")
+    from input.nwp_store import load_nwp_readings
+    nwp_df = load_nwp_readings()
+    if nwp_df.empty:
+        print("  [!] No NWP data found — run open_meteo_historical.py to backfill.")
+        print("  Proceeding with station features only (nwp_* features will be NaN).")
+        nwp_df = None
+    else:
+        print(f"  NWP readings: {len(nwp_df):,} rows  "
+              f"({nwp_df.index.min().date()} → {nwp_df.index.max().date()})")
+
     # --- Build training pairs ---
-    X, y = build_training_pairs(df, cfg)
+    X, y = build_training_pairs(df, cfg, nwp_df=nwp_df)
 
     if X.empty:
         days = df.index.normalize().nunique()
@@ -67,9 +79,9 @@ def train(config_path: str = DEFAULT_CONFIG) -> None:
     # Cross-validation only when we have enough samples
     if len(X) >= 10 and y.nunique() > 1:
         n_splits = min(5, y.value_counts().min())
-        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+        cv = TimeSeriesSplit(n_splits=n_splits)
         scores = cross_val_score(clf, X, y, cv=cv, scoring="roc_auc")
-        print(f"\nCV ROC-AUC : {scores.mean():.3f} ± {scores.std():.3f}  (k={n_splits})")
+        print(f"\nCV ROC-AUC : {scores.mean():.3f} ± {scores.std():.3f}  (k={n_splits}, temporal)")
     else:
         print("\n(Skipping cross-validation — too few samples)")
 

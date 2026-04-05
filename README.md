@@ -1,13 +1,13 @@
 # windPredictor
 
-Predicts good sailing conditions from a personal Ecowitt weather station. A Random Forest model trained on weather-station history outputs a probability forecast published to GitHub Pages six times a day.
+Predicts good sailing conditions from a personal Ecowitt weather station. A Random Forest model trained on weather-station history — enriched with Open-Meteo NWP forecast features — outputs a probability forecast published to GitHub Pages six times a day.
 
 ## How it works
 
 1. **Scraper** downloads daily xlsx exports from ecowitt.net into a local folder
 2. **Stitcher** upserts them into the `weather_readings` Supabase table
-3. **Trainer** builds historical training pairs and saves a Random Forest model
-4. **Predictor** loads the saved model, takes a weather snapshot, and saves a rolling 7-day forecast to the `forecast_snapshots` table
+3. **Trainer** builds historical training pairs (station features + NWP features) and saves a Random Forest model
+4. **Predictor** loads the saved model, fetches a live NWP forecast, takes a weather snapshot, and saves a rolling 7-day forecast to the `forecast_snapshots` table
 5. **Renderer** reads `forecast_snapshots` and builds a self-contained `index.html`
 6. **CI** uploads `index.html` as a GitHub Pages artifact — no git commits needed
 
@@ -44,15 +44,23 @@ python input/stitcher.py
 
 Upserts all xlsx files into the `weather_readings` table (Supabase or `local.db`). Re-running is safe — rows are upserted by timestamp.
 
-### 3. Train the model
+### 3. Backfill NWP history (first time only)
+
+```bash
+python deploy.py --backfill-nwp 2024-01-01 2026-04-05
+```
+
+Fetches ERA5 hourly data from Open-Meteo's archive API for the given date range and stores it in the `nwp_readings` table. Re-running is safe (upsert by timestamp). Skip this step if NWP data is already present.
+
+### 4. Train the model
 
 ```bash
 python model/train.py
 ```
 
-Saves weights to `model/weights.joblib`. See [Model methodology](#model-methodology) below.
+Saves weights to `model/weights.joblib`. Loads NWP readings automatically — if none are present, NWP features are imputed with training-time medians. See [Model methodology](#model-methodology) below.
 
-### 4. Predict
+### 5. Predict
 
 ```bash
 python model/predict.py
@@ -60,7 +68,7 @@ python model/predict.py
 
 Saves predictions to the `forecast_snapshots` table (rolling 7-day window per predicting date).
 
-### 5. Render and preview
+### 6. Render and preview
 
 ```bash
 python render_html.py --out index.html
@@ -72,7 +80,7 @@ Or run the full pipeline with a local browser preview:
 python deploy.py --preview
 ```
 
-### 6. Explore (optional)
+### 7. Explore (optional)
 
 ```bash
 python explore.py             # all panels → exploration.png
@@ -144,27 +152,44 @@ Each (snapshot time, date) pair becomes one training row.
 
 ### Feature engineering
 
-Rather than feeding raw sensor values, the model uses **28-day trailing anomalies** for the key continuous readings:
+The model uses two sources of features: **station-derived** features from the local Ecowitt sensor, and **NWP forecast** features from Open-Meteo for the target sailing window.
+
+**Station features (28-day trailing anomalies):**
 
 | Feature | What it captures |
 |---|---|
 | `pressure_anomaly` | Pressure departure from 28-day mean — rising/falling systems |
 | `temperature_anomaly` | Air mass character relative to the season |
-| `wind_speed_anomaly` | Whether it's windier or calmer than usual |
-| `wind_gust_anomaly`, `humidity_anomaly` | Similar |
+| `humidity_anomaly` | Dryness signal |
 
-Short-term relative features are kept as-is:
+Short-term relative features:
 
 | Feature group | Examples |
 |---|---|
 | Trends | `pressure_trend_3h`, `temp_trend_3h`, `pressure_trend_6h/12h` |
-| Rolling means | `wind_speed_mean_3h/6h/12h` |
-| Consistency | `wind_dir_consistency_3h/6h` (circular std of direction) |
+| Rolling means / maxima | `wind_speed_mean_3h/6h/12h`, `wind_speed_max_18h/24h` |
+| Consistency | `wind_dir_consistency_3h/6h/12h` (circular std of direction) |
 | Direction | `wind_dir_sin`, `wind_dir_cos` |
+| Thermal indicators | `diurnal_temp_range_24h`, `air_water_temp_diff`, `solar_mean_3h` |
+
+**NWP forecast features** (Open-Meteo, for the target day's sailing window):
+
+| Feature | What it captures |
+|---|---|
+| `nwp_wind_speed_mean/max` | Forecast wind in the sailing window |
+| `nwp_wind_gust_max` | Peak gusts |
+| `nwp_wind_dir_sin/cos`, `nwp_dir_consistency` | Forecast direction stability |
+| `nwp_cloud_cover_mean` | Sky cover → solar heating potential |
+| `nwp_blh_mean` | Boundary layer height → convective mixing |
+| `nwp_direct_radiation_mean` | Direct solar radiation |
+
+NWP features are imputed with training-time medians when unavailable, so the model degrades gracefully if the API is unreachable.
 
 ### Model
 
-Random Forest classifier (`n_estimators=300`, `max_depth=6`, `class_weight=balanced`), evaluated with stratified 5-fold cross-validation (ROC-AUC). Trained on ~2 years of data: **CV ROC-AUC ≈ 0.87**.
+Random Forest classifier (`n_estimators=300`, `max_depth=6`, `class_weight=balanced`), evaluated with **temporal 5-fold cross-validation** (`TimeSeriesSplit` — no future leakage). Trained on ~2 years of station + NWP data (42 features total).
+
+A GRU sequence model was evaluated as a parallel experiment (`model/train_gru.py`). On this dataset size (~3,900 training pairs) the NWP-enriched RF (ROC-AUC 0.83) outperforms the GRU (ROC-AUC 0.67) — the RF remains the production model.
 
 ## Configuration
 
@@ -208,17 +233,22 @@ windPredictor/
 ├── explore.py               # optional visualisation (data + model diagnostics)
 ├── requirements.txt
 ├── input/
-│   ├── scraper.py           # download daily xlsx from ecowitt.net
-│   ├── stitcher.py          # upsert xlsx files → weather_readings table
-│   ├── weather_store.py     # load_weather_readings() / upsert_readings()
-│   ├── open_meteo.py        # NWP enrichment from Open-Meteo
-│   └── downloaded_files/    # raw daily xlsx (gitignored)
+│   ├── scraper.py               # download daily xlsx from ecowitt.net
+│   ├── stitcher.py              # upsert xlsx files → weather_readings table
+│   ├── weather_store.py         # load_weather_readings() / upsert_readings()
+│   ├── open_meteo.py            # live NWP forecast from Open-Meteo
+│   ├── open_meteo_historical.py # ERA5 historical NWP backfill (90-day chunks)
+│   ├── nwp_store.py             # load_nwp_readings() / upsert_nwp_readings()
+│   └── downloaded_files/        # raw daily xlsx (gitignored)
 ├── model/
-│   ├── features.py          # feature extraction + target computation
-│   ├── train.py             # build training pairs, train, save weights
-│   ├── predict.py           # load weights, save forecast to DB
-│   ├── history.py           # prediction history + outcomes
-│   └── weights.joblib       # saved model artifact (gitignored)
+│   ├── features.py              # feature extraction (station + NWP) + target computation
+│   ├── features_sequence.py     # 24h raw sequences + NWP context vectors for GRU
+│   ├── gru_model.py             # PyTorch GRU architecture (experiment)
+│   ├── train.py                 # build training pairs, train RF, save weights
+│   ├── train_gru.py             # train GRU, compare against RF, write docs/gru_eval.md
+│   ├── predict.py               # load weights, fetch NWP, save forecast to DB
+│   ├── history.py               # prediction history + outcomes
+│   └── weights.joblib           # saved RF weights (gitignored)
 ├── utils/
 │   ├── circular.py          # circular_std() shared utility
 │   ├── config.py            # load_config() + dotenv loading
@@ -227,10 +257,11 @@ windPredictor/
 │   ├── charts.py            # SVG chart helpers
 │   └── data.py              # HTML section builders
 ├── supabase/
-│   ├── schema.sql           # predictions + outcomes tables
-│   ├── schema_additions.sql # weather_readings + forecast_snapshots tables
-│   ├── migrate_parquet.py   # one-time: parquet → weather_readings
-│   └── migrate_from_sqlite.py # one-time: predictions.db → Supabase
+│   ├── schema.sql              # predictions + outcomes tables
+│   ├── schema_additions.sql    # weather_readings + forecast_snapshots tables
+│   ├── schema_nwp.sql          # nwp_readings table
+│   ├── migrate_parquet.py      # one-time: parquet → weather_readings
+│   └── migrate_from_sqlite.py  # one-time: predictions.db → Supabase
 ├── tests/
 │   ├── utils/               # tests for utils/
 │   └── input/               # tests for input/
@@ -241,9 +272,11 @@ windPredictor/
         └── forecast.yml     # GitHub Actions scheduled deploy → Pages artifact
 ```
 
-## Weather data columns
+## Data tables
 
-All weather readings stored in `weather_readings` (ISO-8601 local naive timestamp as primary key):
+### `weather_readings` — local station data
+
+ISO-8601 local naive timestamp as primary key:
 
 | Column | Unit |
 |---|---|
@@ -259,3 +292,16 @@ All weather readings stored in `weather_readings` (ISO-8601 local naive timestam
 | `water_temperature` | °C |
 | `wind_speed` / `wind_gust` | knots |
 | `wind_direction` | degrees |
+
+### `nwp_readings` — Open-Meteo NWP data
+
+Hourly ERA5/forecast data (tz-aware UTC timestamp as primary key). Backfill with `deploy.py --backfill-nwp`:
+
+| Column | Unit |
+|---|---|
+| `temperature` | °C |
+| `wind_speed` / `wind_gust` | knots |
+| `wind_direction` | degrees |
+| `cloud_cover` | % |
+| `blh` | m (boundary layer height) |
+| `direct_radiation` | W/m² |

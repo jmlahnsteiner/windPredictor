@@ -64,6 +64,14 @@ def fetch_forecast(lat: float, lon: float, forecast_days: int = 7) -> pd.DataFra
 
     hourly = data.get("hourly", {})
     times = pd.to_datetime(hourly.pop("time", []))
+
+    # Localize using IANA timezone name from response (same as fetch_historical_chunk)
+    tz_name = data.get("timezone", "UTC")
+    try:
+        times = times.tz_localize(tz_name)
+    except Exception:
+        times = times.tz_localize("UTC")
+
     df = pd.DataFrame(hourly, index=times)
     df.index.name = "timestamp"
     df = df.rename(columns=_COL_NAMES)
