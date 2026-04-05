@@ -221,12 +221,9 @@ def _enrich_with_nwp(
 ) -> None:
     """
     Attach nwp_forecast display stats to each result. Mutates results in-place.
-    Accepts a pre-fetched nwp_df; fetches fresh if not provided.
+    Requires a pre-fetched nwp_df (always passed by predict_now).
     """
-    if nwp_df is None or (hasattr(nwp_df, "empty") and nwp_df.empty):
-        nwp_df = _fetch_nwp_df(cfg)
-
-    if nwp_df is None or (hasattr(nwp_df, "empty") and nwp_df.empty):
+    if nwp_df is None or nwp_df.empty:
         return
 
     try:

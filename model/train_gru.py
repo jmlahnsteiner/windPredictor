@@ -207,6 +207,10 @@ def main():
         print("ERROR: not enough training pairs")
         sys.exit(1)
 
+    if labels.sum() == 0 or (len(labels) - labels.sum()) == 0:
+        print("ERROR: training labels are all one class — cannot run temporal CV")
+        print("  Try adding more data with varied conditions (good/bad sailing days)")
+        sys.exit(1)
     n_splits = min(5, int(labels.sum()))
     cv = TimeSeriesSplit(n_splits=n_splits)
     print(f"\nGRU temporal CV ({n_splits} folds) …")
