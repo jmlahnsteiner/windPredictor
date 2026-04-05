@@ -158,7 +158,7 @@ def predict_snapshot(
     X = pd.DataFrame([features])[feature_names]
     for col in feature_names:
         if X[col].isna().any():
-            X[col] = X[col].fillna(feature_medians.get(col, 0.0))
+            X.loc[:, col] = X[col].fillna(feature_medians.get(col, 0.0))
 
     proba = clf.predict_proba(X)[0]
     if len(proba) == 1:
