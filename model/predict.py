@@ -113,11 +113,31 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(_HERE, "..", "config.toml")
 
 
+def _fetch_nwp_df(cfg: dict) -> pd.DataFrame:
+    """
+    Fetch live NWP forecast for the configured location.
+    Returns empty DataFrame when location is not configured or fetch fails.
+    """
+    loc = cfg.get("location", {})
+    lat, lon = loc.get("lat"), loc.get("lon")
+    if lat is None or lon is None:
+        return pd.DataFrame()
+
+    try:
+        from input.open_meteo import fetch_forecast
+    except ImportError:
+        return pd.DataFrame()
+
+    print("Fetching NWP forecast from Open-Meteo …", flush=True)
+    return fetch_forecast(lat, lon)
+
+
 def predict_snapshot(
     df: pd.DataFrame,
     snap_dt: pd.Timestamp,
     bundle: dict,
     cfg: dict,
+    nwp_df: Optional[pd.DataFrame] = None,
 ) -> dict:
     """
     Predict sailing probability for the sailing window following snap_dt.
@@ -127,7 +147,7 @@ def predict_snapshot(
     feature_medians: dict = bundle["feature_medians"]
     clf = bundle["model"]
 
-    features = extract_snapshot_features(df, snap_dt)
+    features = extract_snapshot_features(df, snap_dt, nwp_df=nwp_df, cfg=cfg)
 
     if features is None:
         return {
@@ -194,26 +214,24 @@ def _sailing_window_data(df: pd.DataFrame, tgt_date, cfg: dict) -> dict:
     }
 
 
-def _enrich_with_nwp(results: list[dict], cfg: dict) -> None:
+def _enrich_with_nwp(
+    results: list[dict],
+    cfg: dict,
+    nwp_df: Optional[pd.DataFrame] = None,
+) -> None:
     """
-    Fetch Open-Meteo NWP for the configured location and attach an
-    ``nwp_forecast`` dict to each result.  Mutates results in-place.
-    No-op when [location] is absent from config or the fetch fails.
+    Attach nwp_forecast display stats to each result. Mutates results in-place.
+    Accepts a pre-fetched nwp_df; fetches fresh if not provided.
     """
-    loc = cfg.get("location", {})
-    lat, lon = loc.get("lat"), loc.get("lon")
-    if lat is None or lon is None:
+    if nwp_df is None or (hasattr(nwp_df, "empty") and nwp_df.empty):
+        nwp_df = _fetch_nwp_df(cfg)
+
+    if nwp_df is None or (hasattr(nwp_df, "empty") and nwp_df.empty):
         return
 
     try:
-        from input.open_meteo import fetch_forecast, sailing_window_stats
+        from input.open_meteo import sailing_window_stats
     except ImportError:
-        print("  [!] input/open_meteo.py not found — skipping NWP enrichment")
-        return
-
-    print("Fetching NWP forecast from Open-Meteo …", flush=True)
-    nwp_df = fetch_forecast(lat, lon)
-    if nwp_df.empty:
         return
 
     sc = cfg["sailing"]
@@ -252,6 +270,7 @@ def predict_now(
         )
 
     bundle = joblib.load(model_path)
+    nwp_df = _fetch_nwp_df(cfg)
 
     if snap_dt is None:
         snap_dt = pd.Timestamp.now().floor("h")
@@ -259,7 +278,7 @@ def predict_now(
     today = snap_dt.date()
 
     # Direct ML prediction for this snapshot time
-    result = predict_snapshot(df, snap_dt, bundle, cfg)
+    result = predict_snapshot(df, snap_dt, bundle, cfg, nwp_df=nwp_df)
     if "error" in result:
         return [result]
 
@@ -324,7 +343,7 @@ def predict_now(
             "condition_source":     "forecast",
         })
 
-    _enrich_with_nwp(results, cfg)
+    _enrich_with_nwp(results, cfg, nwp_df=nwp_df)
     return results
 
 
