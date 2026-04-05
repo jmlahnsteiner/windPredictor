@@ -102,6 +102,7 @@ def test_format_subject_date_no_leading_zero():
 
 
 def test_main_exits_1_missing_resend_key(monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["notify"])
     monkeypatch.delenv("RESEND_API_KEY", raising=False)
     monkeypatch.setenv("NOTIFY_EMAIL", "test@example.com")
     with pytest.raises(SystemExit) as exc:
@@ -111,6 +112,7 @@ def test_main_exits_1_missing_resend_key(monkeypatch, capsys):
 
 
 def test_main_exits_1_missing_notify_email(monkeypatch, capsys):
+    monkeypatch.setattr("sys.argv", ["notify"])
     monkeypatch.setenv("RESEND_API_KEY", "key")
     monkeypatch.delenv("NOTIFY_EMAIL", raising=False)
     with pytest.raises(SystemExit) as exc:
@@ -121,16 +123,17 @@ def test_main_exits_1_missing_notify_email(monkeypatch, capsys):
 
 def test_main_exits_0_silently_when_not_good(monkeypatch, tmp_path):
     """No email sent when prediction is not good."""
+    monkeypatch.setattr("sys.argv", ["notify"])
     monkeypatch.setenv("RESEND_API_KEY", "key")
     monkeypatch.setenv("NOTIFY_EMAIL", "test@example.com")
     today = date.today().isoformat()
     preds = [{"predicting_date": today, "snapshot": today + "T04:00:00",
                "good": False, "probability": 0.1}]
-    (tmp_path / "predictions.json").write_text(json.dumps(preds))
     (tmp_path / "config.toml").write_text(
         '[sailing]\nwindow_start = "08:00"\nwindow_end = "16:00"\n'
     )
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("notify.notify.load_forecast_snapshots", lambda: preds)
     monkeypatch.setattr(resend.Emails, "send", lambda p: pytest.fail("send called unexpectedly"))
     with pytest.raises(SystemExit) as exc:
         main()
@@ -139,16 +142,17 @@ def test_main_exits_0_silently_when_not_good(monkeypatch, tmp_path):
 
 def test_main_sends_email_when_good(monkeypatch, tmp_path):
     """Email is sent when prediction is good."""
+    monkeypatch.setattr("sys.argv", ["notify"])
     monkeypatch.setenv("RESEND_API_KEY", "key")
     monkeypatch.setenv("NOTIFY_EMAIL", "test@example.com")
     today = date.today().isoformat()
     preds = [{"predicting_date": today, "snapshot": today + "T04:00:00",
                "good": True, "probability": 0.75, "condition_label": "Good"}]
-    (tmp_path / "predictions.json").write_text(json.dumps(preds))
     (tmp_path / "config.toml").write_text(
         '[sailing]\nwindow_start = "08:00"\nwindow_end = "16:00"\n'
     )
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("notify.notify.load_forecast_snapshots", lambda: preds)
 
     sent = {}
     def fake_send(params):

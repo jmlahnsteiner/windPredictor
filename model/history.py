@@ -156,10 +156,19 @@ def record_outcome(
         con.close()
 
 
-def backfill_outcomes(daily_quality: "pd.Series", db_path: str = DEFAULT_SQLITE) -> int:
+def backfill_outcomes(
+    daily_quality: "pd.Series",
+    db_path: str = DEFAULT_SQLITE,
+) -> int:
     """
     Backfill the outcomes table from a pd.Series indexed by datetime.date.
-    daily_quality values are fractions (0-1); threshold from the first prediction row is used.
+
+    daily_quality   — quality series (0-1) with direction zeroing applied
+                      (output of compute_daily_target); used for both
+                      actual_good and actual_frac so the chart metric matches
+                      what the model was trained to predict.
+
+    threshold from the first prediction row is used.
     Returns the number of rows upserted.
     """
     if daily_quality.empty:
@@ -175,7 +184,11 @@ def backfill_outcomes(daily_quality: "pd.Series", db_path: str = DEFAULT_SQLITE)
         threshold = row[0] if row else 0.30
 
         rows = [
-            (str(d), int(float(v) >= threshold), float(v))
+            (
+                str(d),
+                int(float(v) >= threshold),
+                float(v),
+            )
             for d, v in daily_quality.items()
         ]
 

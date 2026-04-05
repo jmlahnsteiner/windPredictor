@@ -52,8 +52,16 @@ def _methodology_html(cfg: dict) -> str:
             <dd>Observed wind from a local Ecowitt weather station. Wind, gust, cloud cover, and boundary-layer height forecasts from Open-Meteo NWP (no API key required).</dd>
           </div>
           <div class="about-row">
+            <dt>Actual conditions</dt>
+            <dd>After each day's sailing window closes, hourly station readings are evaluated: the fraction of hours with wind in the {wmin}–{wmax} kn range is stored as the observed outcome. Once recorded, the day card shows "observed" instead of a model probability. Today's card switches to observed once {we} passes.</dd>
+          </div>
+          <div class="about-row">
             <dt>History chart</dt>
-            <dd>Cyan dashed = model probability each day. Green solid = actual fraction of the sailing window with good wind (recorded after the day passes). The dashed threshold line marks the {int(thr * 100)}% good-day cutoff.</dd>
+            <dd>Cyan dashed = model probability at prediction time. Green solid = observed fraction of the sailing window with good wind (filled in after the day passes). The horizontal dashed line marks the {int(thr * 100)}% good-day threshold. Small coloured bars below each date show hour-by-hour quality within the sailing window: green = wind in range, dark = off-range.</dd>
+          </div>
+          <div class="about-row">
+            <dt>Accuracy metrics</dt>
+            <dd><b>Days evaluated</b>: days with both a prediction and a recorded outcome (window has passed). <b>Accuracy</b>: share of those days the model called correctly (good vs not good). <b>Precision</b>: of days predicted good, how many actually were — low precision means false alarms. <b>Recall</b>: of days that were actually good, how many the model caught — low recall means missed opportunities.</dd>
           </div>
         </dl>
       </div>
@@ -151,10 +159,6 @@ def build_html(
           </div>
         </div>
       </div>
-      <div class="meta-row">
-        {exp_chips}
-        <span class="meta-chip">p={d['pct']}%{d['lead_note']}</span>
-      </div>
       {wind_svg(d['headline'].get("window_wind", {}), cfg)}
       {stats_html(d['headline'], cfg)}
     </div>"""
@@ -189,7 +193,7 @@ def build_html(
 
         cards_html = hero_html + compact_grid_html
 
-    history_foldout    = history_html(db_path or DEFAULT_SQLITE)
+    history_foldout    = history_html(db_path or DEFAULT_SQLITE, snapshots=predictions, cfg=cfg)
     methodology_foldout = _methodology_html(cfg)
 
     generated = datetime.now().strftime("%-d %B %Y, %H:%M")
@@ -552,6 +556,38 @@ def build_html(
       letter-spacing: .05em;
       margin-top: 4px;
       text-align: center;
+    }}
+
+    /* ── History header + toggle ── */
+    .hist-header {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }}
+    .hist-toggle {{
+      display: flex;
+      gap: 3px;
+      align-self: flex-end;
+      flex-shrink: 0;
+    }}
+    .hist-btn {{
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      color: var(--c-muted);
+      border-radius: 5px;
+      padding: 3px 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }}
+    .hist-btn.active {{
+      background: var(--c-accent);
+      border-color: var(--c-accent);
+      color: #0f1117;
     }}
 
     /* ── About / methodology ── */

@@ -13,7 +13,7 @@ consistency_window_hours = 0.75
 # Minimum air temperature for a "good sailing" instant.
 # Excludes winter days where wind thresholds are technically met but
 # nobody is on the water. Set to null (or remove) to disable.
-min_temperature = 12.0          # °C
+min_temperature = 5.0          # °C
 
 [prediction]
 # A day is "good" if at least this fraction of the sailing window has good conditions.

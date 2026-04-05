@@ -87,6 +87,28 @@ def _is_good_instant(df: pd.DataFrame, cfg: dict) -> pd.Series:
     return good
 
 
+def compute_speed_frac(df: pd.DataFrame, cfg: dict) -> pd.Series:
+    """
+    For each calendar date in df, return the raw fraction of the sailing window
+    where speed (and temperature) are within thresholds — no direction check.
+
+    Used for ``actual_frac`` in outcome recording so the stored value reflects
+    what was actually observed on the water, independent of direction quality.
+
+    Returns a pd.Series indexed by datetime.date.
+    """
+    sc = cfg["sailing"]
+    sailing = df.between_time(sc["window_start"], sc["window_end"])
+    speed_temp_ok = _is_good_instant(sailing, cfg)
+
+    results: dict = {}
+    for d, day_df in sailing.groupby(sailing.index.date):
+        day_ok = speed_temp_ok.reindex(day_df.index).fillna(False)
+        results[d] = float(day_ok.mean())
+
+    return pd.Series(results)
+
+
 def compute_daily_target(df: pd.DataFrame, cfg: dict) -> pd.Series:
     """
     For each calendar date in df, return the fraction of the sailing window
@@ -95,9 +117,10 @@ def compute_daily_target(df: pd.DataFrame, cfg: dict) -> pd.Series:
     Speed and temperature are checked per reading.  Direction consistency is
     checked once per day using all in-range readings within the sailing window,
     so the check works correctly regardless of data resolution (hourly, 4 h,
-    5 min).  Days with fewer than 3 in-range direction readings are skipped.
+    5 min).  Days with fewer than 3 in-range direction readings are marked poor.
 
-    Returns a pd.Series indexed by datetime.date.
+    Returns a pd.Series indexed by datetime.date.  Use ``compute_speed_frac``
+    when you need the raw fraction without direction zeroing (e.g. outcomes).
     """
     sc = cfg["sailing"]
 
