@@ -135,10 +135,20 @@ def evaluate_rf(X: pd.DataFrame, y: pd.Series, n_splits: int = 5) -> dict:
     cv = TimeSeriesSplit(n_splits=n_splits)
     fold_metrics = []
     for tr, va in cv.split(X_filled):
-        clf.fit(X_filled.iloc[tr], y.iloc[tr])
-        probs = clf.predict_proba(X_filled.iloc[va])[:, 1]
-        preds = (probs >= 0.5).astype(int)
+        y_tr = y.iloc[tr].to_numpy()
         y_va = y.iloc[va].to_numpy()
+        # Skip folds where training labels are all one class
+        if len(set(y_tr)) < 2:
+            fold_metrics.append({k: float("nan") for k in ["roc_auc", "precision", "recall", "f1"]})
+            continue
+        clf.fit(X_filled.iloc[tr], y_tr)
+        proba = clf.predict_proba(X_filled.iloc[va])
+        # predict_proba may return single column if only one class seen in training
+        if proba.shape[1] < 2:
+            fold_metrics.append({k: float("nan") for k in ["roc_auc", "precision", "recall", "f1"]})
+            continue
+        probs = proba[:, 1]
+        preds = (probs >= 0.5).astype(int)
         m = {"roc_auc": roc_auc_score(y_va, probs) if len(set(y_va)) > 1 else float("nan")}
         for name, fn in [("precision", precision_score), ("recall", recall_score),
                          ("f1", f1_score)]:
