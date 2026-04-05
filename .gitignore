@@ -16,3 +16,4 @@ predictions.db
 local.db
 index.html
 .worktrees/
+model/weights_gru.pt
