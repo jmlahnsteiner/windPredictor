@@ -109,18 +109,39 @@ def parse_xlsx(path: str) -> pd.DataFrame | None:
 def stitch_to_db(
     input_dir: str = DEFAULT_INPUT_DIR,
     db_path: str | None = None,
+    since: "date | None" = None,
 ) -> int:
     """
-    Parse all xlsx files in input_dir and upsert rows into weather_readings.
+    Parse xlsx files in input_dir and upsert rows into weather_readings.
 
+    If `since` is given, only files whose name contains a date >= since are
+    processed (filename pattern: Wetterstation_YYYY-MM-DD.xlsx).
     Re-running is safe: existing rows are replaced (upsert by timestamp).
     Returns number of rows upserted.
     """
     import sys as _sys
+    from datetime import date as _date
+    import re as _re
     _sys.path.insert(0, os.path.dirname(_HERE))
     from input.weather_store import upsert_readings
 
-    paths = sorted(glob.glob(os.path.join(input_dir, "*.xlsx")))
+    all_paths = sorted(glob.glob(os.path.join(input_dir, "*.xlsx")))
+    if since is not None:
+        _pat = _re.compile(r"(\d{4}-\d{2}-\d{2})")
+        def _keep(p: str) -> bool:
+            m = _pat.search(os.path.basename(p))
+            if not m:
+                return True  # can't tell — include it
+            try:
+                return _date.fromisoformat(m.group(1)) >= since
+            except ValueError:
+                return True
+        paths = [p for p in all_paths if _keep(p)]
+        skipped = len(all_paths) - len(paths)
+        if skipped:
+            print(f"  (skipping {skipped} file(s) before {since})")
+    else:
+        paths = all_paths
     if not paths:
         print(f"No xlsx files found in {input_dir}")
         return 0

@@ -47,10 +47,14 @@ def step_download(days: int) -> None:
         raise RuntimeError("No files downloaded — check network / credentials.")
 
 
-def step_stitch() -> None:
+def step_stitch(days: int) -> None:
     _banner("[2/4] Stitching xlsx → database")
     from input.stitcher import stitch_to_db
-    stitch_to_db(input_dir=os.path.join(_ROOT, "input", "downloaded_files"))
+    since = date.today() - timedelta(days=days - 1)
+    stitch_to_db(
+        input_dir=os.path.join(_ROOT, "input", "downloaded_files"),
+        since=since,
+    )
 
 
 def step_predict(ref_date: date | None) -> None:
@@ -172,7 +176,7 @@ def main() -> None:
         if not args.no_download:
             step_download(args.days)
         if not args.no_stitch:
-            step_stitch()
+            step_stitch(args.days)
         step_predict(ref_date)
         step_render()
         print("\nAll done.", flush=True)
